@@ -25,6 +25,9 @@ interface OnnxPredictResult {
   confidence: number;   // 0–100 integer
   classIndex: number;
   allScores: Record<string, number>;
+  rawLogits: Record<string, number>;
+  modelUsed: string;
+  timestamp: number;
 }
 
 interface OnnxPluginInterface {
@@ -33,6 +36,11 @@ interface OnnxPluginInterface {
 
 // Register the native Capacitor plugin
 const OnnxPlugin = registerPlugin<OnnxPluginInterface>('OnnxPlugin');
+
+// ── Disease metadata (label → extra info) ────────────────────────────────────
+// ... (rest of metadata stays same)
+// I'll skip re-writing the huge metadata block in the replacement if I can just target the interface and function.
+// But replace_file_content needs a contiguous block. I'll target the interface and then the function separately or together.
 
 // ── Disease metadata (label → extra info) ────────────────────────────────────
 
@@ -147,6 +155,15 @@ export async function analyzeWithNativeOnnx(
   let raw: OnnxPredictResult;
   try {
     raw = await OnnxPlugin.predict({ imageBase64, model });
+    console.log(`[Native ONNX] Inference result for ${model}:`, {
+      label: raw.label,
+      confidence: raw.confidence,
+      classIndex: raw.classIndex,
+      allScores: raw.allScores,
+      rawLogits: raw.rawLogits,
+      modelUsed: raw.modelUsed,
+      timestamp: new Date(raw.timestamp).toLocaleString()
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Native ONNX plugin failed: ${msg}. Make sure the app is built for Android and the models are in assets/public/models/.`);
@@ -156,14 +173,22 @@ export async function analyzeWithNativeOnnx(
   const isHealthy = raw.label.toLowerCase().includes('healthy');
   const isLowConfidence = raw.confidence < CONFIDENCE_THRESHOLD;
 
-  // If confidence is very low, it might not be a crop or the model is very unsure
-  if (isLowConfidence) {
+  // Heuristic: If the range between max logit and min logit is too small, 
+  // or if all logits are negative and close to each other, the model is likely seeing noise/non-crop.
+  const logits = Object.values(raw.rawLogits);
+  const maxLogit = Math.max(...logits);
+  const minLogit = Math.min(...logits);
+  const isLikelyNoise = (maxLogit - minLogit) < 2.0 && raw.confidence < 60;
+
+  if (isLowConfidence || isLikelyNoise) {
     return {
-      diseaseName: 'Inconclusive Result',
+      diseaseName: isLikelyNoise ? 'No Crop Detected' : 'Inconclusive Result',
       cropType: 'Unknown',
       confidence: raw.confidence,
       severity: 'low',
-      description: 'The AI is not confident enough to provide a diagnosis. This can happen if the image is blurry, poorly lit, or does not contain a supported crop.',
+      description: isLikelyNoise 
+        ? 'The AI does not recognize a supported crop in this image. Please ensure you are scanning a clear image of a supported leaf or stem.'
+        : 'The AI is not confident enough to provide a diagnosis. This can happen if the image is blurry, poorly lit, or does not contain a supported crop.',
       symptoms: [],
       causes: [],
       recommendations: [
@@ -175,6 +200,10 @@ export async function analyzeWithNativeOnnx(
       preventionTips: [],
       isHealthy: false,
       isLowConfidence: true,
+      allScores: raw.allScores,
+      rawLogits: raw.rawLogits,
+      modelUsed: raw.modelUsed,
+      timestamp: raw.timestamp
     };
   }
 
@@ -191,5 +220,9 @@ export async function analyzeWithNativeOnnx(
     preventionTips: meta.preventionTips,
     isHealthy,
     isLowConfidence: false,
+    allScores: raw.allScores,
+    rawLogits: raw.rawLogits,
+    modelUsed: raw.modelUsed,
+    timestamp: raw.timestamp
   };
 }

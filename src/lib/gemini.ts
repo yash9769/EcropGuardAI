@@ -28,6 +28,10 @@ export type DiagnosisResult = {
   preventionTips: string[];
   isHealthy: boolean;
   isLowConfidence?: boolean;
+  allScores?: Record<string, number>;
+  rawLogits?: Record<string, number>;
+  modelUsed?: string;
+  timestamp?: number;
 };
 
 export const CONFIDENCE_THRESHOLD = 80;

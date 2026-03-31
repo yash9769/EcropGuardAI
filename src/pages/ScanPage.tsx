@@ -427,6 +427,63 @@ export default function ScanPage({ onSave }: ScanPageProps) {
               {result.description}
             </p>
           )}
+
+          {/* Raw inference details (Debug mode) */}
+          {(result.allScores || result.rawLogits) && (
+            <div className="mt-4 pt-4 border-t border-white/5 opacity-80">
+              <button 
+                onClick={(e) => {
+                  const target = e.currentTarget.nextElementSibling as HTMLDivElement;
+                  target.classList.toggle('hidden');
+                }}
+                className="text-[10px] text-[#4ade80] font-bold flex items-center gap-1 hover:brightness-125 bg-[#4ade80]/10 px-2 py-1 rounded"
+              >
+                <Zap size={10} /> VEIRFY NATIVE AI OUTPUT
+              </button>
+              <div className="hidden mt-3 space-y-3 px-1">
+                <div className="grid grid-cols-1 gap-2 bg-black/20 p-2 rounded-lg">
+                  <div className="flex justify-between text-[9px]">
+                    <span className="text-[#6b8a6b]">Model:</span>
+                    <span className="text-[#e8f5e9] truncate max-w-[150px]">{result.modelUsed || 'Unknown'}</span>
+                  </div>
+                  <div className="flex justify-between text-[9px]">
+                    <span className="text-[#6b8a6b]">Inference Time:</span>
+                    <span className="text-[#e8f5e9]">{result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : 'N/A'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[9px] text-[#4ade80] font-bold uppercase tracking-wider">Probabilities (%)</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {Object.entries(result.allScores || {}).map(([lbl, val]) => (
+                      <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
+                        <span className="truncate mr-1">{lbl}</span>
+                        <span className={val > 50 ? 'text-[#4ade80] font-bold' : ''}>{val}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {result.rawLogits && (
+                  <div className="space-y-1">
+                    <p className="text-[9px] text-[#60a5fa] font-bold uppercase tracking-wider">Raw Model Logits</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                      {Object.entries(result.rawLogits).map(([lbl, val]) => (
+                        <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
+                          <span className="truncate mr-1">{lbl}</span>
+                          <span className="text-[#60a5fa] font-mono">{val.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <p className="text-[8px] italic text-[#6b8a6b] leading-tight border-l border-[#4ade80]/30 pl-2">
+                  Note: AI models always pick a class even if the image is noise. Precise logits prove real-time computation.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Expandable sections */}

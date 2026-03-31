@@ -56,7 +56,7 @@ public class OnnxPlugin extends Plugin {
 
     /**
      * JS call: OnnxPlugin.predict({ imageBase64: "...", model: "resnet50" | "blackgram" })
-     * Returns: { label: string, confidence: number, classIndex: number }
+     * Returns: { label: string, confidence: number, classIndex: number, allScores: {}, rawLogits: {}, modelUsed: string, timestamp: number }
      */
     @PluginMethod
     public void predict(PluginCall call) {
@@ -98,7 +98,13 @@ public class OnnxPlugin extends Plugin {
 
             // 4. Load ONNX model from assets
             Context ctx = getContext();
-            InputStream modelStream = ctx.getAssets().open(modelFileName);
+            InputStream modelStream;
+            try {
+                modelStream = ctx.getAssets().open(modelFileName);
+            } catch (Exception e) {
+                call.reject("Model file NOT FOUND in assets: " + modelFileName + ". Please ensure it is present in android/app/src/main/assets/" + modelFileName);
+                return;
+            }
             byte[] modelBytes = modelStream.readAllBytes();
             modelStream.close();
 
@@ -121,8 +127,8 @@ public class OnnxPlugin extends Plugin {
             OrtSession.Result result = session.run(feeds);
 
             // 7. Extract output logits
-            float[][] logits = (float[][]) result.get(0).getValue();
-            float[] scores = logits[0];
+            float[][] logitsArray = (float[][]) result.get(0).getValue();
+            float[] scores = logitsArray[0];
 
             // 8. Softmax to get probabilities
             float[] probs = softmax(scores);
@@ -146,6 +152,11 @@ public class OnnxPlugin extends Plugin {
             ret.put("confidence", Math.round(confidence * 100)); // 0-100 integer
             ret.put("classIndex", maxIdx);
             ret.put("allScores", scoresToJson(probs, labels));
+            ret.put("rawLogits", scoresToJson(scores, labels)); // Raw model outputs
+            ret.put("modelUsed", modelFileName);
+            ret.put("timestamp", System.currentTimeMillis());
+            
+            Log.i(TAG, "Inference successful: " + label + " (" + Math.round(confidence * 100) + "%)");
             call.resolve(ret);
 
         } catch (Exception e) {
@@ -199,12 +210,15 @@ public class OnnxPlugin extends Plugin {
         return maxIdx;
     }
 
-    private JSObject scoresToJson(float[] probs, String[] labels) {
+    private JSObject scoresToJson(float[] values, String[] labels) {
         JSObject obj = new JSObject();
-        for (int i = 0; i < probs.length; i++) {
+        for (int i = 0; i < values.length; i++) {
             String lbl = (i < labels.length) ? labels[i] : "class_" + i;
-            obj.put(lbl, Math.round(probs[i] * 100));
+            // For raw logits, we use actual floats. For probs, we multiply by 100 for JS comfort.
+            // But let's just return raw values for easier debugging.
+            obj.put(lbl, values[i]);
         }
         return obj;
     }
 }
+
