@@ -169,6 +169,26 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           <p className="text-sm" style={{ color: '#6b8a6b' }}>{t('scan_subtitle')}</p>
         </div>
 
+        {/* Model Selector Toggle */}
+        <div className="flex bg-black/20 p-1 rounded-2xl mb-6 animate-fade-up delay-75" style={{ border: '1px solid rgba(74,222,128,0.1)' }}>
+          <button
+            onClick={() => setCropType('general')}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
+              cropType === 'general' ? 'bg-[#4ade80] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
+            }`}
+          >
+            GENERAL CROPS
+          </button>
+          <button
+            onClick={() => setCropType('blackgram')}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
+              cropType === 'blackgram' ? 'bg-[#60a5fa] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
+            }`}
+          >
+            BLACKGRAM ONLY
+          </button>
+        </div>
+
         {/* Camera option */}
         <button
           onClick={takePhoto}
@@ -438,7 +458,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
                 }}
                 className="text-[10px] text-[#4ade80] font-bold flex items-center gap-1 hover:brightness-125 bg-[#4ade80]/10 px-2 py-1 rounded"
               >
-                <Zap size={10} /> VEIRFY NATIVE AI OUTPUT
+                <Zap size={10} /> VERIFY NATIVE AI OUTPUT
               </button>
               <div className="hidden mt-3 space-y-3 px-1">
                 <div className="grid grid-cols-1 gap-2 bg-black/20 p-2 rounded-lg">
@@ -455,12 +475,15 @@ export default function ScanPage({ onSave }: ScanPageProps) {
                 <div className="space-y-1">
                   <p className="text-[9px] text-[#4ade80] font-bold uppercase tracking-wider">Probabilities (%)</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    {Object.entries(result.allScores || {}).map(([lbl, val]) => (
-                      <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
-                        <span className="truncate mr-1">{lbl}</span>
-                        <span className={val > 50 ? 'text-[#4ade80] font-bold' : ''}>{val}%</span>
-                      </div>
-                    ))}
+                    {Object.entries(result.allScores || {}).map(([lbl, val]) => {
+                      const percent = val <= 1.01 ? Math.round(val * 100) : Math.round(val);
+                      return (
+                        <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
+                          <span className="truncate mr-1">{lbl}</span>
+                          <span className={percent > 50 ? 'text-[#4ade80] font-bold' : ''}>{percent}%</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

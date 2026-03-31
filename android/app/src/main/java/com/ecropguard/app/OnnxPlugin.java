@@ -139,6 +139,11 @@ public class OnnxPlugin extends Plugin {
                 ? labels[maxIdx]
                 : "Unknown (class " + maxIdx + ")";
 
+            // Return pixel stats to prove the model is seeing the actual image
+            float[] stats = getPixelStats(tensorData);
+            float mean = stats[0];
+            float stdDev = stats[1];
+
             // 9. Cleanup
             inputTensor.close();
             result.close();
@@ -154,9 +159,11 @@ public class OnnxPlugin extends Plugin {
             ret.put("allScores", scoresToJson(probs, labels));
             ret.put("rawLogits", scoresToJson(scores, labels)); // Raw model outputs
             ret.put("modelUsed", modelFileName);
+            ret.put("imgMean", mean);
+            ret.put("imgStdDev", stdDev);
             ret.put("timestamp", System.currentTimeMillis());
             
-            Log.i(TAG, "Inference successful: " + label + " (" + Math.round(confidence * 100) + "%)");
+            Log.i(TAG, "Inference: " + label + " (Conf: " + Math.round(confidence * 100) + "%, Mean: " + mean + ", Std: " + stdDev + ")");
             call.resolve(ret);
 
         } catch (Exception e) {
@@ -214,11 +221,23 @@ public class OnnxPlugin extends Plugin {
         JSObject obj = new JSObject();
         for (int i = 0; i < values.length; i++) {
             String lbl = (i < labels.length) ? labels[i] : "class_" + i;
-            // For raw logits, we use actual floats. For probs, we multiply by 100 for JS comfort.
-            // But let's just return raw values for easier debugging.
             obj.put(lbl, values[i]);
         }
         return obj;
+    }
+
+    /** Returns [mean, stdDev] of the normalized tensor data */
+    private float[] getPixelStats(float[] data) {
+        if (data == null || data.length == 0) return new float[]{0, 0};
+        float sum = 0;
+        for (float v : data) sum += v;
+        float mean = sum / data.length;
+
+        float sqSum = 0;
+        for (float v : data) sqSum += (v - mean) * (v - mean);
+        float stdDev = (float) Math.sqrt(sqSum / data.length);
+
+        return new float[]{mean, stdDev};
     }
 }
 

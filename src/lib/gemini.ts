@@ -34,7 +34,7 @@ export type DiagnosisResult = {
   timestamp?: number;
 };
 
-export const CONFIDENCE_THRESHOLD = 80;
+export const CONFIDENCE_THRESHOLD = 55; // Primary rejection is now logit gap; this is secondary
 
 export async function analyzeCropImage(
   base64Image: string,
