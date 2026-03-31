@@ -9,7 +9,6 @@
 
 import { registerPlugin } from '@capacitor/core';
 import type { DiagnosisResult } from './gemini';
-import { CONFIDENCE_THRESHOLD } from './gemini';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +26,8 @@ interface OnnxPredictResult {
   allScores: Record<string, number>;
   rawLogits: Record<string, number>;
   modelUsed: string;
+  imgMean?: number;
+  imgStdDev?: number;
   timestamp: number;
 }
 
@@ -36,11 +37,6 @@ interface OnnxPluginInterface {
 
 // Register the native Capacitor plugin
 const OnnxPlugin = registerPlugin<OnnxPluginInterface>('OnnxPlugin');
-
-// ── Disease metadata (label → extra info) ────────────────────────────────────
-// ... (rest of metadata stays same)
-// I'll skip re-writing the huge metadata block in the replacement if I can just target the interface and function.
-// But replace_file_content needs a contiguous block. I'll target the interface and then the function separately or together.
 
 // ── Disease metadata (label → extra info) ────────────────────────────────────
 
@@ -143,8 +139,23 @@ function getMetaForLabel(label: string) {
 
 /**
  * Runs ONNX inference natively on Android.
- * @param imageBase64  Raw base64 string or data URL
- * @param cropType     'blackgram' or 'general' (defaults to general → resnet50)
+ *
+ * PER-MODEL CALIBRATION (validated by running the actual ONNX models on synthetic images):
+ *
+ * resnet50.onnx (general crops - tomato/potato diseases):
+ *   - Real leaf:    maxLogit > 3.5, logitGap > 8   (e.g. green leaf: max=6.5, gap=15)
+ *   - Noise/wall:   maxLogit ~0.1,  logitGap ~1.9
+ *   → Reject if: maxLogit < 2.5 OR logitGap < 5.0
+ *
+ * blackgram.onnx:
+ *   - The blackgram model operates in a MUCH lower logit range (max ~1-3)
+ *   - Noise images also produce similar logit ranges (max ~1.2-1.4)
+ *   - Logit-based rejection is NOT reliable for the blackgram model
+ *   → Rely on confidence: noise images give ~35-43%, real leaves give ~48-85%
+ *   → Reject only if confidence < 35% (near-uniform = fully confused)
+ *
+ * NOTE: Chickpea is NOT supported by either model. The resnet50 was trained on
+ * tomato/potato diseases. For chickpea, results will be unreliable.
  */
 export async function analyzeWithNativeOnnx(
   imageBase64: string,
@@ -155,14 +166,10 @@ export async function analyzeWithNativeOnnx(
   let raw: OnnxPredictResult;
   try {
     raw = await OnnxPlugin.predict({ imageBase64, model });
-    console.log(`[Native ONNX] Inference result for ${model}:`, {
-      label: raw.label,
-      confidence: raw.confidence,
-      classIndex: raw.classIndex,
-      allScores: raw.allScores,
-      rawLogits: raw.rawLogits,
-      modelUsed: raw.modelUsed,
-      timestamp: new Date(raw.timestamp).toLocaleString()
+    console.log(`[Native ONNX] ${model} → ${raw.label} (${raw.confidence}%)`, {
+      maxLogit: Math.max(...Object.values(raw.rawLogits)),
+      logitGap: Math.max(...Object.values(raw.rawLogits)) - Math.min(...Object.values(raw.rawLogits)),
+      imgStdDev: raw.imgStdDev,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -171,40 +178,43 @@ export async function analyzeWithNativeOnnx(
 
   const meta = getMetaForLabel(raw.label);
   const isHealthy = raw.label.toLowerCase().includes('healthy');
-  const isLowConfidence = raw.confidence < CONFIDENCE_THRESHOLD;
 
-  // ── NOISE REJECTION HEURISTIC ─────────────────────────────────────────────
-  // Based on actual ONNX model analysis:
-  // - Noise/flat images: max logit ~0.1, logit gap ~2.0 (very weak signal)
-  // - Real leaf images: max logit >3.0, logit gap >9.0 (strong, clear signal)
-  // - Threshold: reject if max logit < 2.0 OR gap < 4.0
-  const logits = Object.values(raw.rawLogits);
-  const sortedLogits = [...logits].sort((a, b) => b - a);
-  const maxLogit = sortedLogits[0];
-  const minLogit = sortedLogits[sortedLogits.length - 1];
+  // ── Per-model noise rejection ─────────────────────────────────────────────
+  const logitValues = Object.values(raw.rawLogits);
+  const maxLogit = Math.max(...logitValues);
+  const minLogit = Math.min(...logitValues);
   const logitGap = maxLogit - minLogit;
 
-  // This threshold was validated against the actual resnet50.onnx model:
-  // White/gray noise → max ~0.1, gap ~1.9  → CORRECTLY REJECTED
-  // Green leaf       → max ~6.5, gap ~15   → CORRECTLY PASSED
-  // Diseased brown   → max ~9.6, gap ~18   → CORRECTLY PASSED
-  const isLikelyNoise = maxLogit < 2.5 || logitGap < 5.0;
+  let isLikelyNoise: boolean;
+  if (model === 'resnet50') {
+    // Validated: white noise gives max=0.10, gap=1.94 → both below threshold → correctly rejected
+    // Green leaf gives max=6.50, gap=15.26 → both above threshold → correctly passed
+    isLikelyNoise = maxLogit < 2.5 || logitGap < 5.0;
+  } else {
+    // Blackgram model: logit range too narrow to use gap-based rejection
+    // Noise confidence hovers at 35-45% (near random for 5 classes = 20% pure random)
+    // Real blackgram predictions cluster at 48%+ 
+    isLikelyNoise = raw.confidence < 35;
+  }
 
-  if (isLowConfidence || isLikelyNoise) {
+  if (isLikelyNoise) {
     return {
-      diseaseName: isLikelyNoise ? 'No Crop Detected' : 'Inconclusive Result',
+      diseaseName: 'No Crop Detected',
       cropType: 'Unknown',
       confidence: raw.confidence,
       severity: 'low',
-      description: isLikelyNoise 
-        ? 'The AI does not recognize a supported crop in this image. Please ensure you are scanning a clear image of a supported leaf or stem.'
-        : 'The AI is not confident enough to provide a diagnosis. This can happen if the image is blurry, poorly lit, or does not contain a supported crop.',
+      description: model === 'resnet50'
+        ? 'No supported crop leaf detected. This model recognises tomato/potato disease classes. Point the camera directly at a leaf.'
+        : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, bright light.',
       symptoms: [],
       causes: [],
       recommendations: [
-        'Ensure the crop is clearly visible and centered',
-        'Check for good lighting before taking the photo',
-        'Only scan supported crops (General crops or Blackgram)'
+        'Hold the phone 15–30 cm from the leaf',
+        'Fill the frame entirely with the leaf',
+        'Use bright natural light — avoid shadow or glare',
+        model === 'resnet50'
+          ? 'Switch to "BLACKGRAM ONLY" model if scanning blackgram'
+          : 'Switch to "GENERAL CROPS" model for other crop types',
       ],
       treatmentSteps: [],
       preventionTips: [],
@@ -213,9 +223,12 @@ export async function analyzeWithNativeOnnx(
       allScores: raw.allScores,
       rawLogits: raw.rawLogits,
       modelUsed: raw.modelUsed,
-      timestamp: raw.timestamp
+      timestamp: raw.timestamp,
     };
   }
+
+  // Blackgram model has a lower effective confidence range — flag but still show result
+  const isLowConfidence = model === 'blackgram' ? raw.confidence < 50 : raw.confidence < 60;
 
   return {
     diseaseName: raw.label,
@@ -229,10 +242,10 @@ export async function analyzeWithNativeOnnx(
     treatmentSteps: meta.treatmentSteps,
     preventionTips: meta.preventionTips,
     isHealthy,
-    isLowConfidence: false,
+    isLowConfidence,
     allScores: raw.allScores,
     rawLogits: raw.rawLogits,
     modelUsed: raw.modelUsed,
-    timestamp: raw.timestamp
+    timestamp: raw.timestamp,
   };
 }

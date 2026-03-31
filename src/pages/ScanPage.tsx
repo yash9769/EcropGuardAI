@@ -170,23 +170,39 @@ export default function ScanPage({ onSave }: ScanPageProps) {
         </div>
 
         {/* Model Selector Toggle */}
-        <div className="flex bg-black/20 p-1 rounded-2xl mb-6 animate-fade-up delay-75" style={{ border: '1px solid rgba(74,222,128,0.1)' }}>
-          <button
-            onClick={() => setCropType('general')}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
-              cropType === 'general' ? 'bg-[#4ade80] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
-            }`}
-          >
-            GENERAL CROPS
-          </button>
-          <button
-            onClick={() => setCropType('blackgram')}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
-              cropType === 'blackgram' ? 'bg-[#60a5fa] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
-            }`}
-          >
-            BLACKGRAM ONLY
-          </button>
+        <div className="mb-4 animate-fade-up delay-75">
+          <div className="flex bg-black/20 p-1 rounded-2xl mb-2" style={{ border: '1px solid rgba(74,222,128,0.1)' }}>
+            <button
+              onClick={() => setCropType('general')}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
+                cropType === 'general' ? 'bg-[#4ade80] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
+              }`}
+            >
+              GENERAL CROPS
+            </button>
+            <button
+              onClick={() => setCropType('blackgram')}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
+                cropType === 'blackgram' ? 'bg-[#60a5fa] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
+              }`}
+            >
+              BLACKGRAM ONLY
+            </button>
+          </div>
+          {/* Show which crops are supported */}
+          <div className="px-1">
+            {cropType === 'general' ? (
+              <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
+                ✅ Supports: <span style={{ color: '#4ade80' }}>Tomato, Potato</span> — diseases: Early Blight, Late Blight, Rust
+                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Blackgram</span>
+              </p>
+            ) : (
+              <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
+                ✅ Supports: <span style={{ color: '#60a5fa' }}>Blackgram (Urad Dal)</span> — diseases: Cercospora, YMV, Powdery Mildew, Anthracnose
+                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Tomato</span>
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Camera option */}
