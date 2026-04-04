@@ -2,8 +2,8 @@ import * as ort from 'onnxruntime-web';
 import { type DiagnosisResult } from './gemini';
 
 // --- ONNX Runtime WASM Paths (For Mobile/Capacitor) ---
-// This ensures that the wasm files copied to public/onnx-wasm are found
-ort.env.wasm.wasmPaths = '/onnx-wasm/';
+// Fallback to CDN for web rendering to avoid Vite intercepting public .mjs files
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/';
 ort.env.wasm.numThreads = 1; // More stable on mobile
 
 // --- Labels for each model (UPDATE THESE BASED ON YOUR TRAINING CLASSES) ---
@@ -12,7 +12,7 @@ const LABELS_RESNET50 = [
 ];
 
 const LABELS_BLACKGRAM = [
-  "Healthy", "Cercospora Leaf Spot", "Yellow Mosaic Virus", "Powdery Mildew", "Anthracnose"
+  "Unknown/Background", "Anthracnose", "Healthy", "Leaf Crinckle", "Powdery Mildew", "Yellow Mosaic"
 ];
 
 // Preprocessing: Maximize canvas performance
@@ -86,6 +86,41 @@ export async function analyzeOffline(
     const confidence = Math.round((Math.exp(output[maxIdx]) / expSum) * 100);
 
     const diseaseName = labels[maxIdx] || `Disease Class ${maxIdx}`;
+    
+    // Noise rejection (borrowed from native-onnx logic)
+    const minVal = Math.min(...Array.from(output));
+    const logitGap = maxVal - minVal;
+    
+    let isLikelyNoise = false;
+    if (cropType !== 'blackgram') {
+      isLikelyNoise = maxVal < 2.5 || logitGap < 5.0;
+    } else {
+      isLikelyNoise = confidence < 35 || diseaseName === 'Unknown/Background';
+    }
+
+    if (isLikelyNoise) {
+      return {
+        diseaseName: 'No Crop Detected',
+        cropType: 'Unknown',
+        confidence: confidence,
+        severity: 'low',
+        description: cropType !== 'blackgram'
+          ? 'No supported crop leaf detected. This model recognises tomato/potato disease classes. Point the camera directly at a leaf.'
+          : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, bright light.',
+        symptoms: [],
+        causes: [],
+        recommendations: [
+          'Hold the phone 15–30 cm from the leaf',
+          'Fill the frame entirely with the leaf',
+          'Use bright natural light — avoid shadow or glare',
+         ],
+        treatmentSteps: [],
+        preventionTips: [],
+        isHealthy: false,
+        isLowConfidence: true
+      };
+    }
+
     const isHealthy = diseaseName.toLowerCase().includes('healthy');
 
     // Return dummy populated structure since the model only gives binary/class

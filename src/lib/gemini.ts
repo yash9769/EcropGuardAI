@@ -11,6 +11,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { analyzeWithNativeOnnx } from './native-onnx';
+import { analyzeOffline } from './offline-ai';
 import { GoogleGenAI, Part } from '@google/genai';
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -50,16 +51,28 @@ export async function analyzeCropImage(
     return analyzeWithNativeOnnx(base64Image, cropType);
   }
 
-  // ── 2. GEMINI API — web fallback if key is available ─────────────────────
+  // ── 2. WEB ONNX (Offline Web) ─────────────────────────────────────────────
+  try {
+    console.log('[eCropGuard] Running Web ONNX inference...');
+    // analyzeOffline expects a dataUrl
+    const dataUrl = base64Image.startsWith('data:') 
+       ? base64Image 
+       : `data:${mimeType};base64,${base64Image}`;
+    return await analyzeOffline(dataUrl, cropType);
+  } catch (err) {
+    console.log('[eCropGuard] Web ONNX failed, falling back to Gemini if available...', err);
+  }
+
+  // ── 3. GEMINI API — web fallback if key is available ─────────────────────
   if (apiKey && apiKey.trim() !== '') {
     console.log('[eCropGuard] Running Gemini cloud inference...');
     return analyzeWithGemini(base64Image, mimeType, language);
   }
 
-  // ── 3. No method available ────────────────────────────────────────────────
+  // ── 4. No method available ────────────────────────────────────────────────
   throw new Error(
     'No analysis method available. On Android, make sure the app is built with the native ONNX plugin. ' +
-    'On web, set VITE_GEMINI_API_KEY in your .env file.'
+    'On web, ensure the ONNX models are present in public/models or set VITE_GEMINI_API_KEY in your .env file.'
   );
 }
 

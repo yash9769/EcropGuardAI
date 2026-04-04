@@ -76,7 +76,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
   const [step, setStep] = useState<Step>('select');
   const [imageData, setImageData] = useState<string | null>(null); // base64 or data URL for preview
   const [imageMime, setImageMime] = useState('image/jpeg');
-  const [cropType, setCropType] = useState<'general' | 'blackgram'>('general');
+  const [cropType, setCropType] = useState<'general' | 'blackgram'>('blackgram');
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -193,13 +193,13 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           <div className="px-1">
             {cropType === 'general' ? (
               <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
-                ✅ Supports: <span style={{ color: '#4ade80' }}>Tomato, Potato</span> — diseases: Early Blight, Late Blight, Rust
-                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Blackgram</span>
+                ✅ Supports: <span style={{ color: '#4ade80' }}>Chickpea, Tomato, Potato</span> — diseases: Blight, Healthy, Leaf Spot, Wilt
+                {' · '}<span style={{ color: '#f87171' }}>Not for: Blackgram</span>
               </p>
             ) : (
               <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
-                ✅ Supports: <span style={{ color: '#60a5fa' }}>Blackgram (Urad Dal)</span> — diseases: Cercospora, YMV, Powdery Mildew, Anthracnose
-                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Tomato</span>
+                ✅ Supports: <span style={{ color: '#60a5fa' }}>Blackgram</span> — diseases: Anthracnose, Cercospora, Mosaic, Powdery Mildew
+                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Tomato, Potato</span>
               </p>
             )}
           </div>

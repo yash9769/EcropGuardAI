@@ -2,25 +2,26 @@ import torch
 import torch.nn as nn
 from torchvision import models
 
-def convert_model(pth_path, onnx_path, num_classes=None):
+def convert_model():
+    val_path = 'bg_resnet50.pth'
+    onnx_path = 'public/models/blackgram.onnx'
+    
     # Load ResNet50
     model = models.resnet50()
     
-    # Adjust last layer if num_classes is provided
-    if num_classes:
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # For bg_resnet50.pth, we need 6 classes with Sequential
+    model.fc = nn.Sequential(
+        nn.Dropout(0.5),
+        nn.Linear(model.fc.in_features, 6)
+    )
     
     # Load weights
     try:
-        model.load_state_dict(torch.load(pth_path, map_location='cpu'))
+        model.load_state_dict(torch.load(val_path, map_location='cpu', weights_only=False))
+        print("Weights loaded successfully.")
     except Exception as e:
         print(f"Error loading state dict: {e}")
-        print("Trying to load as full model weights...")
-        checkpoint = torch.load(pth_path, map_location='cpu')
-        if isinstance(checkpoint, dict):
-             model.load_state_dict(checkpoint, strict=False)
-        else:
-             model = checkpoint
+        return
 
     model.eval()
 
@@ -28,6 +29,9 @@ def convert_model(pth_path, onnx_path, num_classes=None):
     dummy_input = torch.randn(1, 3, 224, 224)
 
     # Export to ONNX
+    import os
+    os.makedirs(os.path.dirname(onnx_path), exist_ok=True)
+    
     torch.onnx.export(
         model, 
         dummy_input, 
@@ -42,8 +46,4 @@ def convert_model(pth_path, onnx_path, num_classes=None):
     print(f"Model converted and saved to {onnx_path}")
 
 if __name__ == "__main__":
-    # You might need to change num_classes to match your trained models!
-    # Common for blackgram models: 4 or 5 classes? 
-    # If it fails, try without num_classes or check your training code.
-    convert_model('resnet50 (1).pth', 'public/models/resnet50.onnx', num_classes=4)
-    convert_model('blackgram_resnet50 (1).pth', 'public/models/blackgram.onnx', num_classes=5)
+    convert_model()

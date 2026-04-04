@@ -34,12 +34,12 @@ public class OnnxPlugin extends Plugin {
 
     // Labels for resnet50 (general crops) — must match training order
     private static final String[] LABELS_RESNET50 = {
-        "Healthy", "Early Blight", "Late Blight", "Rust"
+        "Blight", "Healthy", "Leaf Spot", "Wilt"
     };
 
     // Labels for blackgram model — must match training order
     private static final String[] LABELS_BLACKGRAM = {
-        "Healthy", "Cercospora Leaf Spot", "Yellow Mosaic Virus", "Powdery Mildew", "Anthracnose"
+        "Anthracnose", "Cercospora", "Healthy", "Powdery Mildew", "Yellow Mosaic Virus"
     };
 
     private OrtEnvironment ortEnv;
