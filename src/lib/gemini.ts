@@ -40,25 +40,39 @@ export const CONFIDENCE_THRESHOLD = 55; // Primary rejection is now logit gap; t
 export async function analyzeCropImage(
   base64Image: string,
   mimeType: string = 'image/jpeg',
-  language: string = 'en',
-  cropType: string = 'general'
+  language: string = 'en'
 ): Promise<DiagnosisResult> {
+
+  const pickBest = (res1: DiagnosisResult, res2: DiagnosisResult) => {
+    const r1Valid = res1.diseaseName !== 'No Crop Detected';
+    const r2Valid = res2.diseaseName !== 'No Crop Detected';
+    
+    if (r1Valid && !r2Valid) return res1;
+    if (!r1Valid && r2Valid) return res2;
+    // both valid or both invalid -> pick highest confidence
+    return res1.confidence >= res2.confidence ? res1 : res2;
+  };
 
   // ── 1. NATIVE ONNX (Android) — primary path, no internet needed ──────────
   if (Capacitor.isNativePlatform()) {
-    console.log('[eCropGuard] Running native ONNX inference on Android...');
-    // Pass the raw base64 (no data URL prefix needed, plugin handles both)
-    return analyzeWithNativeOnnx(base64Image, cropType);
+    console.log('[eCropGuard] Running native ONNX inference on Android (both models)...');
+    
+    const resBlackgram = await analyzeWithNativeOnnx(base64Image, 'blackgram');
+    const resChickpea = await analyzeWithNativeOnnx(base64Image, 'resnet50');
+    return pickBest(resBlackgram, resChickpea);
   }
 
   // ── 2. WEB ONNX (Offline Web) ─────────────────────────────────────────────
   try {
-    console.log('[eCropGuard] Running Web ONNX inference...');
-    // analyzeOffline expects a dataUrl
+    console.log('[eCropGuard] Running Web ONNX inference (both models)...');
     const dataUrl = base64Image.startsWith('data:') 
        ? base64Image 
        : `data:${mimeType};base64,${base64Image}`;
-    return await analyzeOffline(dataUrl, cropType);
+       
+    // Sequential to save memory on lower end devices since it's Web WASM
+    const resBlackgram = await analyzeOffline(dataUrl, 'blackgram');
+    const resChickpea = await analyzeOffline(dataUrl, 'resnet50');
+    return pickBest(resBlackgram, resChickpea);
   } catch (err) {
     console.log('[eCropGuard] Web ONNX failed, falling back to Gemini if available...', err);
   }

@@ -38,19 +38,19 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
           <button
             onClick={() => setSelectedScan(null)}
             className="w-9 h-9 rounded-xl flex items-center justify-center press"
-            style={{ background: 'rgba(74,222,128,0.08)' }}
+            style={{ background: 'var(--green-glow)' }}
           >
-            <X size={18} style={{ color: '#4ade80' }} />
+            <X size={18} style={{ color: 'var(--green)' }} />
           </button>
-          <h1 className="font-display font-bold text-xl flex-1" style={{ color: '#e8f5e9' }}>
+          <h1 className="font-display font-bold text-xl flex-1" style={{ color: 'var(--text)' }}>
             {selectedScan.disease_name || 'Unknown'}
           </h1>
           <button
             onClick={() => setConfirmDelete(selectedScan.id)}
             className="w-9 h-9 rounded-xl flex items-center justify-center press"
-            style={{ background: 'rgba(248,113,113,0.1)' }}
+            style={{ background: 'color-mix(in srgb, var(--red), transparent 90%)' }}
           >
-            <Trash2 size={16} style={{ color: '#f87171' }} />
+            <Trash2 size={16} style={{ color: 'var(--red)' }} />
           </button>
         </div>
 
@@ -60,19 +60,19 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
             className="glass rounded-2xl p-4 mb-4 animate-scale-in"
             style={{ border: '1px solid rgba(248,113,113,0.3)' }}
           >
-            <p className="text-sm mb-3" style={{ color: '#e8f5e9' }}>{t('confirm_delete')}</p>
+            <p className="text-sm mb-3" style={{ color: 'var(--text)' }}>{t('confirm_delete')}</p>
             <div className="flex gap-3">
-              <button
+               <button
                 onClick={() => setConfirmDelete(null)}
                 className="flex-1 py-2.5 rounded-xl text-sm font-display font-semibold press"
-                style={{ background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}
+                style={{ background: 'var(--green-glow)', color: 'var(--green)', border: '1px solid var(--border)' }}
               >
                 {t('cancel')}
               </button>
               <button
                 onClick={() => handleDelete(confirmDelete)}
                 className="flex-1 py-2.5 rounded-xl text-sm font-display font-bold press"
-                style={{ background: 'rgba(248,113,113,0.2)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
+                style={{ background: 'color-mix(in srgb, var(--red), transparent 85%)', color: 'var(--red)', border: '1px solid var(--red)' }}
               >
                 {t('delete')}
               </button>
@@ -84,28 +84,28 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
         <div className="glass rounded-3xl p-5 mb-4 animate-scale-in">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
-              <h2 className="font-display font-bold text-lg mb-1" style={{ color: '#e8f5e9' }}>
+              <h2 className="font-display font-bold text-lg mb-1" style={{ color: 'var(--text)' }}>
                 {selectedScan.disease_name}
               </h2>
-              <p className="text-sm mb-3" style={{ color: '#6b8a6b' }}>{selectedScan.crop_type}</p>
+              <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>{selectedScan.crop_type}</p>
               {selectedScan.severity && <SeverityBadge severity={selectedScan.severity} />}
             </div>
             {selectedScan.confidence !== null && selectedScan.confidence !== undefined && (
               <ConfidenceRing value={selectedScan.confidence} />
             )}
           </div>
-          <p className="text-xs" style={{ color: '#3d5c3d' }}>{formatDate(selectedScan.created_at)}</p>
+          <p className="text-xs" style={{ color: 'var(--text-dim)' }}>{formatDate(selectedScan.created_at)}</p>
         </div>
 
         {selectedScan.recommendations && selectedScan.recommendations.length > 0 && (
           <div className="glass rounded-2xl p-4 mb-3 animate-fade-up delay-100">
-            <p className="text-xs font-display font-semibold mb-3" style={{ color: '#4ade80' }}>
+            <p className="text-xs font-display font-semibold mb-3" style={{ color: 'var(--green)' }}>
               {t('recommendations')}
             </p>
             <ul className="space-y-2">
               {selectedScan.recommendations.map((r, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#a8c5a8' }}>
-                  <span style={{ color: '#4ade80', flexShrink: 0 }}>→</span>
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                  <span style={{ color: 'var(--green)', flexShrink: 0 }}>→</span>
                   {r}
                 </li>
               ))}
@@ -115,7 +115,7 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
 
         {selectedScan.treatment_steps && selectedScan.treatment_steps.length > 0 && (
           <div className="glass rounded-2xl p-4 animate-fade-up delay-200">
-            <p className="text-xs font-display font-semibold mb-3" style={{ color: '#60a5fa' }}>
+            <p className="text-xs font-display font-semibold mb-3" style={{ color: 'var(--blue)' }}>
               {t('treatment')}
             </p>
             <ol className="space-y-2">
@@ -123,11 +123,11 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
                 <li key={i} className="flex items-start gap-3 text-sm">
                   <span
                     className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 font-display font-bold text-xs"
-                    style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}
+                    style={{ background: 'var(--blue)', color: '#ffffff' }}
                   >
                     {i + 1}
                   </span>
-                  <span style={{ color: '#a8c5a8' }}>{step}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{step}</span>
                 </li>
               ))}
             </ol>
@@ -141,16 +141,16 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
     <div className="flex flex-col min-h-screen px-4 pt-14 pb-28 bg-mesh">
       {/* Header */}
       <div className="animate-fade-up mb-5">
-        <h1 className="font-display font-bold text-2xl mb-1" style={{ color: '#e8f5e9' }}>
+        <h1 className="font-display font-bold text-2xl mb-1" style={{ color: 'var(--text)' }}>
           {t('history_title')}
         </h1>
-        <p className="text-sm" style={{ color: '#6b8a6b' }}>{scans.length} scans recorded</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{scans.length} scans recorded</p>
       </div>
 
       {/* Search */}
       {scans.length > 0 && (
         <div className="relative mb-4 animate-fade-up delay-100">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#3d5c3d' }} />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-dim)' }} />
           <input
             type="search"
             value={search}
@@ -158,9 +158,9 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
             placeholder="Search disease, crop..."
             className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm outline-none"
             style={{
-              background: 'rgba(13,26,13,0.7)',
-              border: '1px solid rgba(74,222,128,0.15)',
-              color: '#e8f5e9',
+              background: 'var(--bg-glass)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
             }}
           />
         </div>
@@ -180,14 +180,14 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
         <div className="flex flex-col items-center justify-center flex-1 py-16 animate-fade-up">
           <div
             className="w-16 h-16 rounded-3xl flex items-center justify-center mb-4"
-            style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)' }}
+            style={{ background: 'var(--green-glow)', border: '1px solid var(--border)' }}
           >
-            <History size={28} style={{ color: '#4ade80' }} />
+            <History size={28} style={{ color: 'var(--green)' }} />
           </div>
-          <p className="font-display font-semibold text-base mb-1" style={{ color: '#e8f5e9' }}>
+          <p className="font-display font-semibold text-base mb-1" style={{ color: 'var(--text)' }}>
             {t('no_history')}
           </p>
-          <p className="text-sm text-center" style={{ color: '#6b8a6b', maxWidth: 220 }}>
+          <p className="text-sm text-center" style={{ color: 'var(--text-muted)', maxWidth: 220 }}>
             {t('no_history_sub')}
           </p>
         </div>
@@ -196,8 +196,8 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
       {/* No results */}
       {!loading && scans.length > 0 && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 animate-fade-up">
-          <AlertCircle size={28} style={{ color: '#3d5c3d' }} className="mb-3" />
-          <p className="text-sm" style={{ color: '#6b8a6b' }}>No results for "{search}"</p>
+          <AlertCircle size={28} style={{ color: 'var(--text-dim)' }} className="mb-3" />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No results for "{search}"</p>
         </div>
       )}
 
@@ -213,17 +213,17 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
             {/* Icon */}
             <div
               className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(74,222,128,0.08)' }}
+              style={{ background: 'var(--green-glow)' }}
             >
-              <Leaf size={20} style={{ color: '#4ade80' }} />
+              <Leaf size={20} style={{ color: 'var(--green)' }} />
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="font-display font-semibold text-sm truncate mb-0.5" style={{ color: '#e8f5e9' }}>
+              <p className="font-display font-semibold text-sm truncate mb-0.5" style={{ color: 'var(--text)' }}>
                 {scan.disease_name || 'Unknown Disease'}
               </p>
-              <p className="text-xs truncate" style={{ color: '#6b8a6b' }}>
+              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
                 {scan.crop_type || 'Unknown crop'} · {formatDate(scan.created_at)}
               </p>
             </div>
@@ -232,7 +232,7 @@ export default function HistoryPage({ scans, loading, onDelete }: HistoryPagePro
             <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
               {scan.severity && <SeverityBadge severity={scan.severity} size="sm" />}
               {scan.confidence !== null && scan.confidence !== undefined && (
-                <span className="text-xs font-display font-semibold" style={{ color: '#6b8a6b' }}>
+                <span className="text-xs font-display font-semibold" style={{ color: 'var(--text-muted)' }}>
                   {scan.confidence}%
                 </span>
               )}

@@ -21,11 +21,9 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 pb-safe"
+      className="fixed bottom-0 left-0 right-0 z-50 pb-safe glass"
       style={{
-        background: 'linear-gradient(to top, rgba(6,13,6,0.98) 0%, rgba(6,13,6,0.95) 100%)',
-        borderTop: '1px solid rgba(74,222,128,0.1)',
-        backdropFilter: 'blur(20px)',
+        borderTop: '1px solid var(--border)',
       }}
     >
       <div className="flex items-center justify-around px-2 pt-2 pb-1">
@@ -52,19 +50,19 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                     background: isActive
                       ? 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)'
                       : 'linear-gradient(135deg, #1a3a1a 0%, #0f2a0f 100%)',
-                    border: isActive ? 'none' : '1px solid rgba(74,222,128,0.3)',
+                    border: isActive ? 'none' : '1px solid var(--border-bright)',
                   }}
                 >
                   <Icon
                     size={26}
                     strokeWidth={isActive ? 2.5 : 2}
-                    style={{ color: isActive ? '#060d06' : '#4ade80' }}
+                    style={{ color: isActive ? '#060d06' : 'var(--green)' }}
                   />
                 </div>
                 {isActive && (
                   <div
                     className="absolute inset-0 rounded-full animate-pulse-ring"
-                    style={{ background: 'rgba(74,222,128,0.2)', transform: 'scale(1)' }}
+                    style={{ background: 'var(--green-glow)', transform: 'scale(1)' }}
                   />
                 )}
               </button>
@@ -84,19 +82,19 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                   isActive && 'glow-green-sm'
                 )}
                 style={{
-                  background: isActive ? 'rgba(74,222,128,0.15)' : 'transparent',
+                  background: isActive ? 'var(--green-soft)' : 'transparent',
                 }}
               >
                 <Icon
                   size={20}
                   strokeWidth={isActive ? 2.5 : 1.8}
-                  style={{ color: isActive ? '#4ade80' : '#3d5c3d' }}
+                  style={{ color: isActive ? 'var(--green)' : 'var(--text-dim)' }}
                 />
               </div>
               <span
                 className="text-xs font-display transition-all duration-200"
                 style={{
-                  color: isActive ? '#4ade80' : '#3d5c3d',
+                  color: isActive ? 'var(--green)' : 'var(--text-dim)',
                   fontWeight: isActive ? 600 : 400,
                   fontSize: '10px',
                 }}

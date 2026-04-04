@@ -42,7 +42,7 @@ function ExpandSection({
   return (
     <div
       className="glass rounded-2xl overflow-hidden"
-      style={{ border: `1px solid ${color}20` }}
+      style={{ border: `1px solid color-mix(in srgb, ${color}, transparent 85%)` }}
     >
       <button
         onClick={() => setOpen(!open)}
@@ -50,16 +50,16 @@ function ExpandSection({
       >
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: `${color}15` }}
+          style={{ background: `color-mix(in srgb, ${color}, transparent 90%)` }}
         >
           <Icon size={16} style={{ color }} />
         </div>
-        <span className="flex-1 text-left font-display font-semibold text-sm" style={{ color: '#e8f5e9' }}>
+        <span className="flex-1 text-left font-display font-semibold text-sm" style={{ color: 'var(--text)' }}>
           {title}
         </span>
         <ChevronDown
           size={16}
-          style={{ color: '#6b8a6b', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+          style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
         />
       </button>
       {open && (
@@ -76,7 +76,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
   const [step, setStep] = useState<Step>('select');
   const [imageData, setImageData] = useState<string | null>(null); // base64 or data URL for preview
   const [imageMime, setImageMime] = useState('image/jpeg');
-  const [cropType, setCropType] = useState<'general' | 'blackgram'>('blackgram');
+  // cropType is no longer needed in state as we evaluate both automatically
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -120,7 +120,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
     setAnalyzeError('');
     try {
       const base64 = imageData.startsWith('data:') ? dataUrlToBase64(imageData) : imageData;
-      const diagnosis = await analyzeCropImage(base64, imageMime, i18n.language, cropType);
+      const diagnosis = await analyzeCropImage(base64, imageMime, i18n.language);
       setResult(diagnosis);
       setStep('result');
     } catch (e: unknown) {
@@ -163,47 +163,13 @@ export default function ScanPage({ onSave }: ScanPageProps) {
     return (
       <div className="flex flex-col min-h-screen px-4 pt-16 pb-28 bg-mesh">
         <div className="animate-fade-up mb-8">
-          <h1 className="font-display font-bold text-2xl mb-1" style={{ color: '#e8f5e9' }}>
+          <h1 className="font-display font-bold text-2xl mb-1" style={{ color: 'var(--text)' }}>
             {t('scan_title')}
           </h1>
-          <p className="text-sm" style={{ color: '#6b8a6b' }}>{t('scan_subtitle')}</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('scan_subtitle')}</p>
         </div>
 
-        {/* Model Selector Toggle */}
-        <div className="mb-4 animate-fade-up delay-75">
-          <div className="flex bg-black/20 p-1 rounded-2xl mb-2" style={{ border: '1px solid rgba(74,222,128,0.1)' }}>
-            <button
-              onClick={() => setCropType('general')}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
-                cropType === 'general' ? 'bg-[#4ade80] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
-              }`}
-            >
-              GENERAL CROPS
-            </button>
-            <button
-              onClick={() => setCropType('blackgram')}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-display font-bold transition-all ${
-                cropType === 'blackgram' ? 'bg-[#60a5fa] text-[#060d06] shadow-lg' : 'text-[#6b8a6b]'
-              }`}
-            >
-              BLACKGRAM ONLY
-            </button>
-          </div>
-          {/* Show which crops are supported */}
-          <div className="px-1">
-            {cropType === 'general' ? (
-              <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
-                ✅ Supports: <span style={{ color: '#4ade80' }}>Chickpea, Tomato, Potato</span> — diseases: Blight, Healthy, Leaf Spot, Wilt
-                {' · '}<span style={{ color: '#f87171' }}>Not for: Blackgram</span>
-              </p>
-            ) : (
-              <p className="text-[10px]" style={{ color: '#6b8a6b' }}>
-                ✅ Supports: <span style={{ color: '#60a5fa' }}>Blackgram</span> — diseases: Anthracnose, Cercospora, Mosaic, Powdery Mildew
-                {' · '}<span style={{ color: '#f87171' }}>Not for: Chickpea, Tomato, Potato</span>
-              </p>
-            )}
-          </div>
-        </div>
+
 
         {/* Camera option */}
         <button
@@ -223,8 +189,8 @@ export default function ScanPage({ onSave }: ScanPageProps) {
               <Camera size={26} style={{ color: '#4ade80' }} />
             </div>
             <div className="text-left">
-              <p className="font-display font-bold text-base mb-0.5" style={{ color: '#e8f5e9' }}>{t('take_photo')}</p>
-              <p className="text-xs" style={{ color: '#6b8a6b' }}>Use camera for best results</p>
+              <p className="font-display font-bold text-base mb-0.5" style={{ color: 'var(--text)' }}>{t('take_photo')}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Use camera for best results</p>
             </div>
             <ChevronRight size={18} className="ml-auto flex-shrink-0" style={{ color: '#3d5c3d' }} />
           </div>
@@ -248,8 +214,8 @@ export default function ScanPage({ onSave }: ScanPageProps) {
               <Upload size={26} style={{ color: '#60a5fa' }} />
             </div>
             <div className="text-left">
-              <p className="font-display font-bold text-base mb-0.5" style={{ color: '#e8f5e9' }}>{t('upload_image')}</p>
-              <p className="text-xs" style={{ color: '#6b8a6b' }}>Upload from gallery</p>
+              <p className="font-display font-bold text-base mb-0.5" style={{ color: 'var(--text)' }}>{t('upload_image')}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Upload from gallery</p>
             </div>
             <ChevronRight size={18} className="ml-auto flex-shrink-0" style={{ color: '#3d5c3d' }} />
           </div>
@@ -265,7 +231,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
 
         {/* Instructions */}
         <div className="mt-6 glass rounded-2xl p-4 animate-fade-up delay-300">
-          <p className="text-xs font-display font-semibold mb-3" style={{ color: '#4ade80' }}>📸 Guidelines for accurate results</p>
+          <p className="text-xs font-display font-semibold mb-3" style={{ color: 'var(--green)' }}>📸 Guidelines for accurate results</p>
           {[
             'ONLY scan supported crops (leaves/stems/pods)',
             'Avoid scanning hands, soil, or mixed backgrounds',
@@ -273,8 +239,8 @@ export default function ScanPage({ onSave }: ScanPageProps) {
             'Keep leaves flat and centered in the frame',
           ].map((tip, i) => (
             <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
-              <span className="text-xs mt-0.5 flex-shrink-0" style={{ color: '#4ade80' }}>•</span>
-              <p className="text-xs" style={{ color: '#6b8a6b' }}>{tip}</p>
+              <span className="text-xs mt-0.5 flex-shrink-0" style={{ color: 'var(--green)' }}>•</span>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{tip}</p>
             </div>
           ))}
         </div>
@@ -287,10 +253,10 @@ export default function ScanPage({ onSave }: ScanPageProps) {
     return (
       <div className="flex flex-col min-h-screen px-4 pt-16 pb-28 bg-mesh">
         <div className="flex items-center gap-3 mb-6 animate-fade-up">
-          <button onClick={reset} className="w-9 h-9 rounded-xl flex items-center justify-center press" style={{ background: 'rgba(74,222,128,0.08)' }}>
-            <ArrowLeft size={18} style={{ color: '#4ade80' }} />
+          <button onClick={reset} className="w-9 h-9 rounded-xl flex items-center justify-center press" style={{ background: 'var(--green-glow)' }}>
+            <ArrowLeft size={18} style={{ color: 'var(--green)' }} />
           </button>
-          <h1 className="font-display font-bold text-xl" style={{ color: '#e8f5e9' }}>Preview</h1>
+          <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text)' }}>Preview</h1>
         </div>
 
         {/* Image */}
@@ -304,9 +270,9 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           <button
             onClick={reset}
             className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(6,13,6,0.8)' }}
+            style={{ background: 'rgba(0,0,0,0.5)' }}
           >
-            <X size={16} style={{ color: '#e8f5e9' }} />
+            <X size={16} style={{ color: '#ffffff' }} />
           </button>
         </div>
 
@@ -324,9 +290,9 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           onClick={analyze}
           className="w-full py-4 rounded-2xl font-display font-bold text-base press"
           style={{
-            background: 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
-            color: '#060d06',
-            boxShadow: '0 4px 24px rgba(74,222,128,0.35)',
+            background: 'linear-gradient(135deg, var(--green-dim) 0%, var(--green) 100%)',
+            color: '#ffffff',
+            boxShadow: '0 4px 24px var(--green-glow)',
           }}
         >
           <span className="flex items-center justify-center gap-2">
@@ -372,10 +338,10 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           </div>
         </div>
 
-        <h2 className="font-display font-bold text-xl mb-2" style={{ color: '#e8f5e9' }}>
+        <h2 className="font-display font-bold text-xl mb-2" style={{ color: 'var(--text)' }}>
           {t('analyzing')}
         </h2>
-        <p className="text-sm text-center" style={{ color: '#6b8a6b', maxWidth: 220 }}>
+        <p className="text-sm text-center" style={{ color: 'var(--text-muted)', maxWidth: 220 }}>
           AI is examining your crop for diseases and deficiencies
         </p>
 
@@ -404,10 +370,10 @@ export default function ScanPage({ onSave }: ScanPageProps) {
       <div className="flex flex-col min-h-screen px-4 pt-14 pb-28 bg-mesh overflow-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-5 animate-fade-up">
-          <button onClick={reset} className="w-9 h-9 rounded-xl flex items-center justify-center press" style={{ background: 'rgba(74,222,128,0.08)' }}>
-            <ArrowLeft size={18} style={{ color: '#4ade80' }} />
+          <button onClick={reset} className="w-9 h-9 rounded-xl flex items-center justify-center press" style={{ background: 'var(--green-glow)' }}>
+            <ArrowLeft size={18} style={{ color: 'var(--green)' }} />
           </button>
-          <h1 className="font-display font-bold text-xl" style={{ color: '#e8f5e9' }}>{t('result_title')}</h1>
+          <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text)' }}>{t('result_title')}</h1>
         </div>
 
         {/* Hero card */}
@@ -449,17 +415,17 @@ export default function ScanPage({ onSave }: ScanPageProps) {
 
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h2 className="font-display font-bold text-lg leading-tight mb-1" style={{ color: '#e8f5e9' }}>
+              <h2 className="font-display font-bold text-lg leading-tight mb-1" style={{ color: 'var(--text)' }}>
                 {result.diseaseName}
               </h2>
-              <p className="text-sm mb-3" style={{ color: '#6b8a6b' }}>{result.cropType}</p>
+              <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>{result.cropType}</p>
               <SeverityBadge severity={result.severity} />
             </div>
             <ConfidenceRing value={result.confidence} />
           </div>
 
           {result.description && (
-            <p className="text-sm mt-4 pt-4 leading-relaxed" style={{ color: '#a8c5a8', borderTop: '1px solid rgba(74,222,128,0.1)' }}>
+            <p className="text-sm mt-4 pt-4 leading-relaxed" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
               {result.description}
             </p>
           )}
@@ -472,31 +438,31 @@ export default function ScanPage({ onSave }: ScanPageProps) {
                   const target = e.currentTarget.nextElementSibling as HTMLDivElement;
                   target.classList.toggle('hidden');
                 }}
-                className="text-[10px] text-[#4ade80] font-bold flex items-center gap-1 hover:brightness-125 bg-[#4ade80]/10 px-2 py-1 rounded"
+                className="text-[10px] text-[var(--green)] font-bold flex items-center gap-1 hover:brightness-125 bg-[var(--green-glow)] px-2 py-1 rounded"
               >
                 <Zap size={10} /> VERIFY NATIVE AI OUTPUT
               </button>
               <div className="hidden mt-3 space-y-3 px-1">
-                <div className="grid grid-cols-1 gap-2 bg-black/20 p-2 rounded-lg">
+                <div className="grid grid-cols-1 gap-2 bg-black/5 p-2 rounded-lg">
                   <div className="flex justify-between text-[9px]">
-                    <span className="text-[#6b8a6b]">Model:</span>
-                    <span className="text-[#e8f5e9] truncate max-w-[150px]">{result.modelUsed || 'Unknown'}</span>
+                    <span className="text-[var(--text-muted)]">Model:</span>
+                    <span className="text-[var(--text)] truncate max-w-[150px]">{result.modelUsed || 'Unknown'}</span>
                   </div>
                   <div className="flex justify-between text-[9px]">
-                    <span className="text-[#6b8a6b]">Inference Time:</span>
-                    <span className="text-[#e8f5e9]">{result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : 'N/A'}</span>
+                    <span className="text-[var(--text-muted)]">Inference Time:</span>
+                    <span className="text-[var(--text)]">{result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : 'N/A'}</span>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-[9px] text-[#4ade80] font-bold uppercase tracking-wider">Probabilities (%)</p>
+                  <p className="text-[9px] text-[var(--green)] font-bold uppercase tracking-wider">Probabilities (%)</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                     {Object.entries(result.allScores || {}).map(([lbl, val]) => {
                       const percent = val <= 1.01 ? Math.round(val * 100) : Math.round(val);
                       return (
-                        <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
+                        <div key={lbl} className="flex justify-between text-[9px] text-[var(--text-muted)]">
                           <span className="truncate mr-1">{lbl}</span>
-                          <span className={percent > 50 ? 'text-[#4ade80] font-bold' : ''}>{percent}%</span>
+                          <span className={percent > 50 ? 'text-[var(--green)] font-bold' : ''}>{percent}%</span>
                         </div>
                       );
                     })}
@@ -505,19 +471,19 @@ export default function ScanPage({ onSave }: ScanPageProps) {
 
                 {result.rawLogits && (
                   <div className="space-y-1">
-                    <p className="text-[9px] text-[#60a5fa] font-bold uppercase tracking-wider">Raw Model Logits</p>
+                    <p className="text-[9px] text-[var(--blue)] font-bold uppercase tracking-wider">Raw Model Logits</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                       {Object.entries(result.rawLogits).map(([lbl, val]) => (
-                        <div key={lbl} className="flex justify-between text-[9px] text-[#6b8a6b]">
+                        <div key={lbl} className="flex justify-between text-[9px] text-[var(--text-muted)]">
                           <span className="truncate mr-1">{lbl}</span>
-                          <span className="text-[#60a5fa] font-mono">{val.toFixed(2)}</span>
+                          <span className="text-[var(--blue)] font-mono">{val.toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
                 
-                <p className="text-[8px] italic text-[#6b8a6b] leading-tight border-l border-[#4ade80]/30 pl-2">
+                <p className="text-[8px] italic text-[var(--text-muted)] leading-tight border-l border-[var(--green)] pl-2">
                   Note: AI models always pick a class even if the image is noise. Precise logits prove real-time computation.
                 </p>
               </div>
@@ -528,11 +494,11 @@ export default function ScanPage({ onSave }: ScanPageProps) {
         {/* Expandable sections */}
         <div className="flex flex-col gap-3 animate-fade-up delay-200">
           {result.symptoms.length > 0 && (
-            <ExpandSection title="Symptoms" icon={AlertTriangle} color="#fbbf24">
+            <ExpandSection title="Symptoms" icon={AlertTriangle} color="var(--amber)">
               <ul className="space-y-2">
                 {result.symptoms.map((s, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#a8c5a8' }}>
-                    <span style={{ color: '#fbbf24', flexShrink: 0, marginTop: 2 }}>•</span>
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 2 }}>•</span>
                     {s}
                   </li>
                 ))}
@@ -541,11 +507,11 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           )}
 
           {result.recommendations.length > 0 && (
-            <ExpandSection title={t('recommendations')} icon={Zap} color="#4ade80">
+            <ExpandSection title={t('recommendations')} icon={Zap} color="var(--green)">
               <ul className="space-y-2">
                 {result.recommendations.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#a8c5a8' }}>
-                    <span style={{ color: '#4ade80', flexShrink: 0, marginTop: 2 }}>→</span>
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }}>→</span>
                     {r}
                   </li>
                 ))}
@@ -554,17 +520,17 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           )}
 
           {result.treatmentSteps.length > 0 && (
-            <ExpandSection title={t('treatment')} icon={Leaf} color="#60a5fa">
+            <ExpandSection title={t('treatment')} icon={Leaf} color="var(--blue)">
               <ol className="space-y-3">
                 {result.treatmentSteps.map((step, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm">
                     <span
                       className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-display font-bold text-xs"
-                      style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}
+                      style={{ background: 'var(--blue)', color: '#ffffff' }}
                     >
                       {i + 1}
                     </span>
-                    <span style={{ color: '#a8c5a8' }}>{step}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{step}</span>
                   </li>
                 ))}
               </ol>
@@ -572,17 +538,17 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           )}
 
           {result.preventionTips.length > 0 && (
-            <ExpandSection title={t('prevention')} icon={CheckCircle2} color="#34d399">
+            <ExpandSection title={t('prevention')} icon={CheckCircle2} color="var(--green)">
               <ul className="space-y-2">
                 {result.preventionTips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#a8c5a8' }}>
-                    <span style={{ color: '#34d399', flexShrink: 0, marginTop: 2 }}>✓</span>
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }}>✓</span>
                     {tip}
                   </li>
                 ))}
               </ul>
             </ExpandSection>
-          )}
+          ) }
         </div>
 
         {/* Action buttons */}
@@ -591,9 +557,9 @@ export default function ScanPage({ onSave }: ScanPageProps) {
             onClick={reset}
             className="flex-1 py-3.5 rounded-2xl font-display font-semibold text-sm press"
             style={{
-              background: 'rgba(74,222,128,0.08)',
-              border: '1px solid rgba(74,222,128,0.2)',
-              color: '#4ade80',
+              background: 'var(--bg-glass)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
             }}
           >
             {t('scan_again')}
@@ -604,11 +570,11 @@ export default function ScanPage({ onSave }: ScanPageProps) {
             className="flex-1 py-3.5 rounded-2xl font-display font-bold text-sm press disabled:opacity-60"
             style={{
               background: saved
-                ? 'rgba(74,222,128,0.2)'
-                : 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
-              color: saved ? '#4ade80' : '#060d06',
-              border: saved ? '1px solid rgba(74,222,128,0.4)' : 'none',
-              boxShadow: saved ? 'none' : '0 4px 20px rgba(74,222,128,0.3)',
+                ? 'var(--green-glow)'
+                : 'linear-gradient(135deg, var(--green-dim) 0%, var(--green) 100%)',
+              color: saved ? 'var(--green)' : '#ffffff',
+              border: saved ? '1px solid var(--green)' : 'none',
+              boxShadow: saved ? 'none' : '0 4px 20px var(--green-glow)',
             }}
           >
             {saving ? '...' : saved ? `✓ ${t('saved')}` : t('save_result')}

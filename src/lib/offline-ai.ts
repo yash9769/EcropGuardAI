@@ -8,7 +8,7 @@ ort.env.wasm.numThreads = 1; // More stable on mobile
 
 // --- Labels for each model (UPDATE THESE BASED ON YOUR TRAINING CLASSES) ---
 const LABELS_RESNET50 = [
-  "Healthy", "Early Blight", "Late Blight", "Rust", "Unknown Disease"
+  "Healthy", "Blight", "Rust", "Wilt", "Unknown Disease"
 ];
 
 const LABELS_BLACKGRAM = [
@@ -105,7 +105,7 @@ export async function analyzeOffline(
         confidence: confidence,
         severity: 'low',
         description: cropType !== 'blackgram'
-          ? 'No supported crop leaf detected. This model recognises tomato/potato disease classes. Point the camera directly at a leaf.'
+          ? 'No supported crop leaf detected. This model recognises chickpea disease classes. Point the camera directly at a leaf.'
           : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, bright light.',
         symptoms: [],
         causes: [],
@@ -126,7 +126,7 @@ export async function analyzeOffline(
     // Return dummy populated structure since the model only gives binary/class
     return {
       diseaseName,
-      cropType: cropType === 'blackgram' ? "Blackgram" : "General Crop",
+      cropType: cropType === 'blackgram' ? "Blackgram" : "Chickpea",
       confidence,
       severity: isHealthy ? 'low' : (confidence > 80 ? 'high' : 'medium'),
       description: isHealthy ? "The crop appears to be in good health." : `Detected signs of ${diseaseName}.`,

@@ -18,6 +18,13 @@ export default function App() {
   const { scans, loading: scansLoading, saveScan, deleteScan } = useScans(user, isGuest);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+  };
 
   // Loading splash
   if (loading) {
@@ -25,10 +32,10 @@ export default function App() {
       <div className="flex items-center justify-center min-h-screen bg-mesh">
         <div className="flex flex-col items-center gap-4">
           <div
-            className="w-16 h-16 rounded-3xl flex items-center justify-center animate-float"
+            className="w-16 h-16 rounded-3xl flex items-center justify-center animate-float glass"
             style={{
-              background: 'linear-gradient(135deg, #1a3a1a 0%, #0f2a0f 100%)',
-              border: '1px solid rgba(74,222,128,0.3)',
+              background: 'var(--bg-glass)',
+              border: '1px solid var(--border)',
             }}
           >
             <span style={{ fontSize: 28 }}>🌿</span>
@@ -39,7 +46,7 @@ export default function App() {
                 key={i}
                 className="w-2 h-2 rounded-full"
                 style={{
-                  background: '#4ade80',
+                  background: 'var(--green)',
                   animation: 'wave 1s ease-in-out infinite',
                   animationDelay: `${i * 0.15}s`,
                 }}
@@ -54,11 +61,15 @@ export default function App() {
   // Auth gate
   if (!isAuthenticated) {
     return (
-      <AuthPage
-        onSignIn={signIn}
-        onSignUp={signUp}
-        onGuest={continueAsGuest}
-      />
+      <div className={isDarkMode ? 'dark' : 'light'}>
+        <AuthPage
+          onSignIn={signIn}
+          onSignUp={signUp}
+          onGuest={continueAsGuest}
+          isDarkMode={isDarkMode}
+          toggleTheme={toggleTheme}
+        />
+      </div>
     );
   }
 
@@ -73,46 +84,50 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      {/* Pages */}
-      <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
-        <HomePage
-          profile={profile}
-          isGuest={isGuest}
-          scans={scans}
-          onScan={() => setActiveTab('scan')}
-          onViewHistory={() => setActiveTab('history')}
-          onViewScan={handleViewScan}
-        />
-      </div>
+    <div className={isDarkMode ? 'dark' : 'light'}>
+      <div className="relative min-h-screen">
+        {/* Pages */}
+        <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
+          <HomePage
+            profile={profile}
+            isGuest={isGuest}
+            scans={scans}
+            onScan={() => setActiveTab('scan')}
+            onViewHistory={() => setActiveTab('history')}
+            onViewScan={handleViewScan}
+          />
+        </div>
 
-      <div style={{ display: activeTab === 'scan' ? 'block' : 'none' }}>
-        <ScanPage
-          onSave={async (scan) => {
-            await saveScan(scan as Parameters<typeof saveScan>[0]);
-          }}
-        />
-      </div>
+        <div style={{ display: activeTab === 'scan' ? 'block' : 'none' }}>
+          <ScanPage
+            onSave={async (scan) => {
+              await saveScan(scan as Parameters<typeof saveScan>[0]);
+            }}
+          />
+        </div>
 
-      <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
-        <HistoryPage
-          scans={scans}
-          loading={scansLoading}
-          onDelete={deleteScan}
-        />
-      </div>
+        <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
+          <HistoryPage
+            scans={scans}
+            loading={scansLoading}
+            onDelete={deleteScan}
+          />
+        </div>
 
-      <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
-        <ProfilePage
-          profile={profile}
-          isGuest={isGuest}
-          onUpdate={updateProfile}
-          onSignOut={signOut}
-        />
-      </div>
+        <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
+          <ProfilePage
+            profile={profile}
+            isGuest={isGuest}
+            onUpdate={updateProfile}
+            onSignOut={signOut}
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
+          />
+        </div>
 
-      {/* Bottom navigation */}
-      <BottomNav active={activeTab} onChange={handleTabChange} />
+        {/* Bottom navigation */}
+        <BottomNav active={activeTab} onChange={handleTabChange} />
+      </div>
     </div>
   );
 }

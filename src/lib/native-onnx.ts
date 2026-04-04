@@ -142,7 +142,7 @@ function getMetaForLabel(label: string) {
  *
  * PER-MODEL CALIBRATION (validated by running the actual ONNX models on synthetic images):
  *
- * resnet50.onnx (general crops - tomato/potato diseases):
+ * resnet50.onnx (chickpea diseases):
  *   - Real leaf:    maxLogit > 3.5, logitGap > 8   (e.g. green leaf: max=6.5, gap=15)
  *   - Noise/wall:   maxLogit ~0.1,  logitGap ~1.9
  *   → Reject if: maxLogit < 2.5 OR logitGap < 5.0
@@ -153,9 +153,6 @@ function getMetaForLabel(label: string) {
  *   - Logit-based rejection is NOT reliable for the blackgram model
  *   → Rely on confidence: noise images give ~35-43%, real leaves give ~48-85%
  *   → Reject only if confidence < 35% (near-uniform = fully confused)
- *
- * NOTE: Chickpea is NOT supported by either model. The resnet50 was trained on
- * tomato/potato diseases. For chickpea, results will be unreliable.
  */
 export async function analyzeWithNativeOnnx(
   imageBase64: string,
@@ -194,7 +191,7 @@ export async function analyzeWithNativeOnnx(
     // Blackgram model: logit range too narrow to use gap-based rejection
     // Noise confidence hovers at 35-45% (near random for 5 classes = 20% pure random)
     // Real blackgram predictions cluster at 48%+ 
-    isLikelyNoise = raw.confidence < 35;
+    isLikelyNoise = raw.confidence < 35 || raw.label === 'Unknown/Background';
   }
 
   if (isLikelyNoise) {
@@ -204,7 +201,7 @@ export async function analyzeWithNativeOnnx(
       confidence: raw.confidence,
       severity: 'low',
       description: model === 'resnet50'
-        ? 'No supported crop leaf detected. This model recognises tomato/potato disease classes. Point the camera directly at a leaf.'
+        ? 'No supported crop leaf detected. This model recognises chickpea disease classes. Point the camera directly at a leaf.'
         : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, bright light.',
       symptoms: [],
       causes: [],
@@ -212,9 +209,6 @@ export async function analyzeWithNativeOnnx(
         'Hold the phone 15–30 cm from the leaf',
         'Fill the frame entirely with the leaf',
         'Use bright natural light — avoid shadow or glare',
-        model === 'resnet50'
-          ? 'Switch to "BLACKGRAM ONLY" model if scanning blackgram'
-          : 'Switch to "GENERAL CROPS" model for other crop types',
       ],
       treatmentSteps: [],
       preventionTips: [],
@@ -232,7 +226,7 @@ export async function analyzeWithNativeOnnx(
 
   return {
     diseaseName: raw.label,
-    cropType: model === 'blackgram' ? 'Blackgram' : 'General Crop',
+    cropType: model === 'blackgram' ? 'Blackgram' : 'Chickpea',
     confidence: raw.confidence,
     severity: meta.severity,
     description: meta.description,

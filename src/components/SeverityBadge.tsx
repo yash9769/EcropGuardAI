@@ -6,10 +6,10 @@ interface SeverityBadgeProps {
 }
 
 const config = {
-  low:      { label: 'Low',      color: '#4ade80', bg: 'rgba(74,222,128,0.12)',  dot: '#4ade80' },
-  medium:   { label: 'Moderate', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', dot: '#fbbf24' },
-  high:     { label: 'High',     color: '#f97316', bg: 'rgba(249,115,22,0.12)', dot: '#f97316' },
-  critical: { label: 'Critical', color: '#f87171', bg: 'rgba(248,113,113,0.12)',dot: '#f87171' },
+  low:      { label: 'Low',      color: 'var(--green)', bg: 'rgba(34,197,94,0.12)',  dot: 'var(--green)' },
+  medium:   { label: 'Moderate', color: 'var(--amber)', bg: 'rgba(251,191,36,0.12)', dot: 'var(--amber)' },
+  high:     { label: 'High',     color: 'var(--orange)', bg: 'rgba(249,115,22,0.12)', dot: 'var(--orange)' },
+  critical: { label: 'Critical', color: 'var(--red)', bg: 'rgba(239,68,68,0.12)',   dot: 'var(--red)' },
 };
 
 export default function SeverityBadge({ severity, size = 'md' }: SeverityBadgeProps) {

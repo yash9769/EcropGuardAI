@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   User, Phone, MapPin, Globe, LogOut, Save, ChevronDown,
-  Leaf, Info, CheckCircle2
+  Leaf, Info, CheckCircle2, Sun, Moon
 } from 'lucide-react';
 import { type Profile } from '../lib/supabase';
 import i18n from '../i18n/i18n';
@@ -12,6 +12,8 @@ interface ProfilePageProps {
   isGuest: boolean;
   onUpdate: (updates: Partial<Profile>) => Promise<void>;
   onSignOut: () => void;
+  isDarkMode: boolean;
+  toggleTheme: () => void;
 }
 
 const LANGUAGES = [
@@ -45,7 +47,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-xs font-display font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: '#6b8a6b' }}>
+      <label className="text-xs font-display font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
         <Icon size={12} />
         {label}
       </label>
@@ -56,12 +58,12 @@ function Field({
         placeholder={placeholder || label}
         className="w-full px-3.5 py-3 rounded-xl text-sm outline-none transition-all"
         style={{
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(74,222,128,0.15)',
-          color: '#e8f5e9',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          color: 'var(--text)',
         }}
-        onFocus={e => e.target.style.borderColor = 'rgba(74,222,128,0.4)'}
-        onBlur={e => e.target.style.borderColor = 'rgba(74,222,128,0.15)'}
+        onFocus={e => e.target.style.borderColor = 'var(--green)'}
+        onBlur={e => e.target.style.borderColor = 'var(--border)'}
       />
     </div>
   );
@@ -78,7 +80,7 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="text-xs font-display font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: '#6b8a6b' }}>
+      <label className="text-xs font-display font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
         <Icon size={12} />
         {label}
       </label>
@@ -88,25 +90,25 @@ function SelectField({
           onChange={e => onChange(e.target.value)}
           className="w-full px-3.5 py-3 rounded-xl text-sm outline-none appearance-none transition-all pr-9"
           style={{
-            background: 'rgba(0,0,0,0.25)',
-            border: '1px solid rgba(74,222,128,0.15)',
-            color: value ? '#e8f5e9' : '#6b8a6b',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            color: value ? 'var(--text)' : 'var(--text-muted)',
           }}
-          onFocus={e => (e.target as HTMLSelectElement).style.borderColor = 'rgba(74,222,128,0.4)'}
-          onBlur={e => (e.target as HTMLSelectElement).style.borderColor = 'rgba(74,222,128,0.15)'}
+          onFocus={e => (e.target as HTMLSelectElement).style.borderColor = 'var(--green)'}
+          onBlur={e => (e.target as HTMLSelectElement).style.borderColor = 'var(--border)'}
         >
           <option value="">Select...</option>
           {options.map(o => (
-            <option key={o.value} value={o.value} style={{ background: '#0d1a0d' }}>{o.label}</option>
+            <option key={o.value} value={o.value} style={{ background: 'var(--bg-card)' }}>{o.label}</option>
           ))}
         </select>
-        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#6b8a6b' }} />
+        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
       </div>
     </div>
   );
 }
 
-export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: ProfilePageProps) {
+export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut, isDarkMode, toggleTheme }: ProfilePageProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(profile?.name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
@@ -134,10 +136,17 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
   return (
     <div className="flex flex-col min-h-screen px-4 pt-14 pb-28 bg-mesh overflow-auto">
       {/* Header */}
-      <div className="animate-fade-up mb-6">
-        <h1 className="font-display font-bold text-2xl mb-1" style={{ color: '#e8f5e9' }}>
+      <div className="animate-fade-up mb-6 flex justify-between items-center">
+        <h1 className="font-display font-bold text-2xl mb-1" style={{ color: 'var(--text)' }}>
           {t('profile_title')}
         </h1>
+        <button 
+          onClick={toggleTheme}
+          className="w-10 h-10 rounded-xl glass flex items-center justify-center press"
+          style={{ color: 'var(--green)' }}
+        >
+          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </div>
 
       {/* Avatar */}
@@ -145,12 +154,12 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
         <div
           className="w-20 h-20 rounded-3xl flex items-center justify-center mb-3 glow-green"
           style={{
-            background: 'linear-gradient(135deg, #1a3a1a 0%, #0f2a0f 100%)',
-            border: '2px solid rgba(74,222,128,0.3)',
+            background: 'var(--bg-glass)',
+            border: '2px solid var(--border)',
             fontSize: 32,
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
-            color: '#4ade80',
+            color: 'var(--green)',
           }}
         >
           {avatarLetter}
@@ -158,7 +167,7 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
         {isGuest && (
           <span
             className="px-3 py-1 rounded-full text-xs font-display font-semibold"
-            style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}
+            style={{ background: 'var(--amber-glow)', color: 'var(--amber)', border: '1px solid var(--border)' }}
           >
             {t('guest_mode')}
           </span>
@@ -194,10 +203,10 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
             disabled={saving}
             className="w-full mt-5 py-3.5 rounded-2xl font-display font-bold text-sm flex items-center justify-center gap-2 press disabled:opacity-60 transition-all"
             style={{
-              background: saved ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
-              color: saved ? '#4ade80' : '#060d06',
-              border: saved ? '1px solid rgba(74,222,128,0.4)' : 'none',
-              boxShadow: saved ? 'none' : '0 4px 20px rgba(74,222,128,0.3)',
+              background: saved ? 'var(--green-glow)' : 'var(--green)',
+              color: saved ? 'var(--green)' : '#ffffff',
+              border: saved ? '1px solid var(--border)' : 'none',
+              boxShadow: saved ? 'none' : '0 4px 20px color-mix(in srgb, var(--green), transparent 70%)',
             }}
           >
             {saved ? (
@@ -223,15 +232,15 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
       {/* About */}
       <div className="glass rounded-2xl p-4 mb-4 animate-fade-up delay-300">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(74,222,128,0.08)' }}>
-            <Leaf size={18} style={{ color: '#4ade80' }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--green-glow)' }}>
+            <Leaf size={18} style={{ color: 'var(--green)' }} />
           </div>
           <div>
-            <p className="font-display font-semibold text-sm" style={{ color: '#e8f5e9' }}>{t('app_name')}</p>
-            <p className="text-xs" style={{ color: '#6b8a6b' }}>v1.0.0 · AI Powered</p>
+            <p className="font-display font-semibold text-sm" style={{ color: 'var(--text)' }}>{t('app_name')}</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>v1.0.0 · AI Powered</p>
           </div>
         </div>
-        <p className="text-xs mt-3 leading-relaxed" style={{ color: '#6b8a6b' }}>
+        <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           Powered by Google Gemini AI. Provides guidance for crop disease identification. Always consult a certified agronomist for critical decisions.
         </p>
       </div>
@@ -241,9 +250,9 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut }: P
         onClick={onSignOut}
         className="flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-display font-semibold text-sm press animate-fade-up delay-400"
         style={{
-          background: 'rgba(248,113,113,0.08)',
-          border: '1px solid rgba(248,113,113,0.2)',
-          color: '#f87171',
+          background: 'var(--red-glow)',
+          border: '1px solid var(--border)',
+          color: 'var(--red)',
         }}
       >
         <LogOut size={16} />

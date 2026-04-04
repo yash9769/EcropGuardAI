@@ -8,7 +8,7 @@ export default function ConfidenceRing({ value, size = 80 }: ConfidenceRingProps
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value / 100) * circumference;
 
-  const color = value >= 80 ? '#4ade80' : value >= 60 ? '#fbbf24' : '#f87171';
+  const color = value >= 80 ? 'var(--green)' : value >= 60 ? 'var(--amber)' : 'var(--red)';
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -18,7 +18,7 @@ export default function ConfidenceRing({ value, size = 80 }: ConfidenceRingProps
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(74,222,128,0.1)"
+          stroke="var(--border)"
           strokeWidth={6}
         />
         <circle
