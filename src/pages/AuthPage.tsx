@@ -64,7 +64,7 @@ export default function AuthPage({ onSignIn, onSignUp, onGuest, isDarkMode, togg
           </button>
           
           {showLang && (
-            <div className="absolute top-full mt-2 left-0 w-40 glass rounded-2xl p-2 shadow-xl animate-scale-in z-30">
+            <div className="absolute top-full mt-2 left-0 w-40 glass rounded-2xl p-2 shadow-xl animate-scale-in z-[100]">
               <div className="grid grid-cols-1 gap-1">
                 {LANGUAGES.map(l => (
                   <button

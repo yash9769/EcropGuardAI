@@ -18,7 +18,10 @@ export default function App() {
   const { scans, loading: scansLoading, saveScan, deleteScan } = useScans(user, isGuest);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Explicitly default to light mode (false) if nothing is stored
+    return localStorage.getItem('theme') === 'dark';
+  });
 
   const toggleTheme = () => {
     const newMode = !isDarkMode;
@@ -29,7 +32,7 @@ export default function App() {
   // Loading splash
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-mesh">
+      <div className={`flex items-center justify-center min-h-screen bg-mesh ${isDarkMode ? 'dark' : 'light'}`}>
         <div className="flex flex-col items-center gap-4">
           <div
             className="w-16 h-16 rounded-3xl flex items-center justify-center animate-float glass"
@@ -95,6 +98,8 @@ export default function App() {
             onScan={() => setActiveTab('scan')}
             onViewHistory={() => setActiveTab('history')}
             onViewScan={handleViewScan}
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
           />
         </div>
 

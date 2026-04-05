@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Camera, Upload, X, ChevronRight, ChevronDown,
-  Leaf, Zap, AlertTriangle, CheckCircle2, ArrowLeft
+  Leaf, Zap, AlertTriangle, CheckCircle2, ArrowLeft,
+  TrendingUp, Sprout, ShieldCheck
 } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { analyzeCropImage, type DiagnosisResult } from '../lib/gemini';
@@ -425,9 +426,15 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           </div>
 
           {result.description && (
-            <p className="text-sm mt-4 pt-4 leading-relaxed" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
-              {result.description}
-            </p>
+            <div className="text-sm mt-4 pt-4 leading-relaxed space-y-3" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+              <p>{result.description}</p>
+              {result.impact && result.severity !== 'low' && (
+                <div className="p-3 rounded-2xl text-xs bg-[var(--red-glow)] border border-[var(--border)] italic">
+                  <span className="font-display font-bold text-[var(--red)] block mb-1 opacity-80 uppercase tracking-wider text-[10px]">⚖️ Predicted Yield Impact</span>
+                  {result.impact}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Raw inference details (Debug mode) */}
@@ -493,6 +500,14 @@ export default function ScanPage({ onSave }: ScanPageProps) {
 
         {/* Expandable sections */}
         <div className="flex flex-col gap-3 animate-fade-up delay-200">
+          {result.impact && (
+             <ExpandSection title="Yield Impact" icon={TrendingUp} color="var(--red)">
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  {result.impact}
+                </p>
+             </ExpandSection>
+          )}
+
           {result.symptoms.length > 0 && (
             <ExpandSection title="Symptoms" icon={AlertTriangle} color="var(--amber)">
               <ul className="space-y-2">
@@ -506,12 +521,38 @@ export default function ScanPage({ onSave }: ScanPageProps) {
             </ExpandSection>
           )}
 
+          {result.causes && result.causes.length > 0 && (
+            <ExpandSection title="Likely Causes" icon={Leaf} color="var(--amber)">
+              <ul className="space-y-2">
+                {result.causes.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 2 }}>•</span>
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </ExpandSection>
+          )}
+
           {result.recommendations.length > 0 && (
             <ExpandSection title={t('recommendations')} icon={Zap} color="var(--green)">
               <ul className="space-y-2">
                 {result.recommendations.map((r, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
                     <span style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }}>→</span>
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </ExpandSection>
+          )}
+
+          {result.organic_controls && result.organic_controls.length > 0 && (
+            <ExpandSection title="Organic Controls" icon={Sprout} color="var(--green)">
+              <ul className="space-y-2">
+                {result.organic_controls.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }}>☘</span>
                     {r}
                   </li>
                 ))}
@@ -538,7 +579,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
           )}
 
           {result.preventionTips.length > 0 && (
-            <ExpandSection title={t('prevention')} icon={CheckCircle2} color="var(--green)">
+            <ExpandSection title={t('prevention')} icon={ShieldCheck} color="var(--green)">
               <ul className="space-y-2">
                 {result.preventionTips.map((tip, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>

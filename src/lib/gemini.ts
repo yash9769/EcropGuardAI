@@ -33,6 +33,9 @@ export type DiagnosisResult = {
   rawLogits?: Record<string, number>;
   modelUsed?: string;
   timestamp?: number;
+  // Enriched report fields
+  impact?: string;
+  organic_controls?: string[];
 };
 
 export const CONFIDENCE_THRESHOLD = 55; // Primary rejection is now logit gap; this is secondary
@@ -44,18 +47,25 @@ export async function analyzeCropImage(
 ): Promise<DiagnosisResult> {
 
   const pickBest = (res1: DiagnosisResult, res2: DiagnosisResult) => {
-    const r1Valid = res1.diseaseName !== 'No Crop Detected';
-    const r2Valid = res2.diseaseName !== 'No Crop Detected';
+    const isNoCrop1 = res1.diseaseName === 'No Crop Detected' || res1.cropType === 'Unknown';
+    const isNoCrop2 = res2.diseaseName === 'No Crop Detected' || res1.cropType === 'Unknown';
     
-    if (r1Valid && !r2Valid) return res1;
-    if (!r1Valid && r2Valid) return res2;
-    // both valid or both invalid -> pick highest confidence
+    // If one found a crop and the other didn't, pick the valid one
+    if (!isNoCrop1 && isNoCrop2) return res1;
+    if (isNoCrop1 && !isNoCrop2) return res2;
+    
+    // If both found crops, pick the one with higher confidence
+    if (!isNoCrop1 && !isNoCrop2) {
+      return res1.confidence >= res2.confidence ? res1 : res2;
+    }
+    
+    // If both rejected, return a "stronger" rejection (higher detail)
     return res1.confidence >= res2.confidence ? res1 : res2;
   };
 
-  // ── 1. NATIVE ONNX (Android) — primary path, no internet needed ──────────
+  // ── 1. NATIVE ONNX (Android) ──────────────────────────────────────────────
   if (Capacitor.isNativePlatform()) {
-    console.log('[eCropGuard] Running native ONNX inference on Android (both models)...');
+    console.log('[eCropGuard] Native Analysis...');
     
     const resBlackgram = await analyzeWithNativeOnnx(base64Image, 'blackgram');
     const resChickpea = await analyzeWithNativeOnnx(base64Image, 'resnet50');

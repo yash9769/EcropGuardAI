@@ -1,5 +1,6 @@
 import * as ort from 'onnxruntime-web';
 import { type DiagnosisResult } from './gemini';
+import { getMetadata } from './crop-metadata';
 
 // --- ONNX Runtime WASM Paths (For Mobile/Capacitor) ---
 // Fallback to CDN for web rendering to avoid Vite intercepting public .mjs files
@@ -8,16 +9,27 @@ ort.env.wasm.numThreads = 1; // More stable on mobile
 
 // --- Labels for each model (UPDATE THESE BASED ON YOUR TRAINING CLASSES) ---
 const LABELS_RESNET50 = [
-  "Healthy", "Blight", "Rust", "Wilt", "Unknown Disease"
+  "Blight", "Healthy", "Leaf Spot", "Wilt"
 ];
 
 const LABELS_BLACKGRAM = [
-  "Unknown/Background", "Anthracnose", "Healthy", "Leaf Crinckle", "Powdery Mildew", "Yellow Mosaic"
+  "Anthracnose", "Cercospora", "Healthy", "Powdery Mildew", "Yellow Mosaic Virus"
 ];
+
+// Cache for ONNX sessions to avoid reloading on every scan
+const sessionCache: Record<string, ort.InferenceSession> = {};
+
+async function getSession(path: string): Promise<ort.InferenceSession> {
+  if (sessionCache[path]) return sessionCache[path];
+  console.log(`[eCropGuard] Initializing session for: ${path}`);
+  const session = await ort.InferenceSession.create(path);
+  sessionCache[path] = session;
+  return session;
+}
 
 // Preprocessing: Maximize canvas performance
 async function preprocess(imageData: ImageData): Promise<Float32Array> {
-  const { data, width, height } = imageData;
+  const { data } = imageData;
   const floatData = new Float32Array(3 * 224 * 224);
 
   // Mean and Std for ImageNet (Common for ResNet)
@@ -43,10 +55,8 @@ export async function analyzeOffline(
     const modelPath = cropType === 'blackgram' ? 'models/blackgram.onnx' : 'models/resnet50.onnx';
     const labels = cropType === 'blackgram' ? LABELS_BLACKGRAM : LABELS_RESNET50;
 
-    console.log(`Loading model: ${modelPath}`);
-    // 2. Load model
-    const session = await ort.InferenceSession.create(modelPath);
-    console.log("Model loaded successfully");
+    // 2. Load/Get model session (CACHED)
+    const session = await getSession(modelPath);
 
     // 3. Load and Resize image using Canvas
     const img = new Image();
@@ -71,48 +81,88 @@ export async function analyzeOffline(
     const results = await session.run(feeds);
     const output = results.output.data as Float32Array;
 
-    // 6. Find max confidence
+    // 6. Calculate Pixel Stats for Noise Rejection
+    // Real plant images have significant variance and color Saturation.
+    let sum = 0, sqSum = 0, colorDiffSum = 0;
+    const pData = imageData.data;
+    const len = pData.length / 4;
+    for (let i = 0; i < len; i++) {
+      const idx = i * 4;
+      const r = pData[idx];
+      const g = pData[idx + 1];
+      const b = pData[idx + 2];
+      const avg = (r + g + b) / 3;
+      sum += avg;
+      sqSum += avg * avg;
+      // Absolute difference between channels (Saturation indicator)
+      colorDiffSum += (Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r)) / 3;
+    }
+    const meanVal = sum / len;
+    const variance = (sqSum / len) - (meanVal * meanVal);
+    const avgColorDiff = colorDiffSum / len;
+
+    // 7. Find max confidence
     let maxIdx = 0;
     let maxVal = -Infinity;
+    let minVal = Infinity;
     for (let i = 0; i < output.length; i++) {
-      if (output[i] > maxVal) {
-        maxVal = output[i];
-        maxIdx = i;
-      }
+        if (output[i] > maxVal) {
+            maxVal = output[i];
+            maxIdx = i;
+        }
+        if (output[i] < minVal) {
+            minVal = output[i];
+        }
     }
 
-    // Softmax for real confidence score (optional)
+    const logitGap = maxVal - minVal;
+
+    // Softmax for real confidence score
     const expSum = Array.from(output).reduce((acc, val) => acc + Math.exp(val), 0);
     const confidence = Math.round((Math.exp(output[maxIdx]) / expSum) * 100);
 
-    const diseaseName = labels[maxIdx] || `Disease Class ${maxIdx}`;
+    const diseaseName = labels[maxIdx] || `Class ${maxIdx}`;
     
-    // Noise rejection (borrowed from native-onnx logic)
-    const minVal = Math.min(...Array.from(output));
-    const logitGap = maxVal - minVal;
-    
+    // 8. Advanced Noise Rejection
     let isLikelyNoise = false;
+    
+    // LOGIC: 
+    // 1. Grayscale/Diagram Check: Real leaves are saturated. Diagrams are mostly gray/white/tan.
+    //    We increase threshold to 6.0 for better rejection of "near-gray" documents.
+    if (avgColorDiff < 6.0) isLikelyNoise = true; 
+    
+    // 2. Variance Check: 
+    //    Solid colors (walls) -> variance < 20
+    //    Technical diagrams (high contrast text/lines) -> variance > 8000
+    if (variance < 20 || variance > 8000) isLikelyNoise = true;
+    
+    // 3. Logit Sensitivity:
+    //    If the model is guessing on noise, logits are usually compressed.
     if (cropType !== 'blackgram') {
-      isLikelyNoise = maxVal < 2.5 || logitGap < 5.0;
+      // resnet50 thresholds (chickpea) — STIFFENED for higher reliability
+      if (maxVal < 3.5 || logitGap < 5.0 || confidence < 60) isLikelyNoise = true;
     } else {
-      isLikelyNoise = confidence < 35 || diseaseName === 'Unknown/Background';
+      // blackgram model
+      if (confidence < 45 || diseaseName === 'Unknown/Background') isLikelyNoise = true;
     }
 
     if (isLikelyNoise) {
+      console.log(`[Noise Rejected] Saturation: ${avgColorDiff.toFixed(2)}, Variance: ${variance.toFixed(2)}, MaxLogit: ${maxVal.toFixed(2)}, Gap: ${logitGap.toFixed(2)}`);
       return {
         diseaseName: 'No Crop Detected',
         cropType: 'Unknown',
-        confidence: confidence,
+        confidence: isLikelyNoise ? 0 : confidence, // Force 0 if rejected
         severity: 'low',
         description: cropType !== 'blackgram'
-          ? 'No supported crop leaf detected. This model recognises chickpea disease classes. Point the camera directly at a leaf.'
-          : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, bright light.',
+          ? 'No clear chickpea leaf detected. This model identifies Wilt, Leaf Spot, and Blight on chickpea plants.'
+          : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, natural light.',
         symptoms: [],
         causes: [],
         recommendations: [
-          'Hold the phone 15–30 cm from the leaf',
-          'Fill the frame entirely with the leaf',
-          'Use bright natural light — avoid shadow or glare',
+          'Capture a clear, focused photo of a single leaf',
+          'Ensure the leaf fills at least 50% of the camera frame',
+          'Avoid scanning text, diagrams, or random objects',
+          'Hold the leaf against a neutral ground (soil or palm)'
          ],
         treatmentSteps: [],
         preventionTips: [],
@@ -121,21 +171,16 @@ export async function analyzeOffline(
       };
     }
 
+    const meta = getMetadata(diseaseName);
     const isHealthy = diseaseName.toLowerCase().includes('healthy');
 
-    // Return dummy populated structure since the model only gives binary/class
     return {
+      ...meta,
       diseaseName,
       cropType: cropType === 'blackgram' ? "Blackgram" : "Chickpea",
       confidence,
-      severity: isHealthy ? 'low' : (confidence > 80 ? 'high' : 'medium'),
-      description: isHealthy ? "The crop appears to be in good health." : `Detected signs of ${diseaseName}.`,
-      symptoms: isHealthy ? [] : ["Visible spots or discoloration on leaves"],
-      causes: isHealthy ? [] : ["Environmental factors or pathogen transmission"],
-      recommendations: isHealthy ? ["Continue regular watering and monitoring"] : ["Check soil moisture", "Remove infected leaves"],
-      treatmentSteps: isHealthy ? [] : ["Isolate infected plants", "Consider organic fungicide if symptoms persist"],
-      preventionTips: ["Ensure proper drainage", "Use nutrient-rich soil"],
-      isHealthy
+      isHealthy,
+      isLowConfidence: cropType === 'blackgram' ? confidence < 50 : confidence < 65
     };
   } catch (error) {
     console.error("Offline analysis failed:", error);

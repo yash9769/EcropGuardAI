@@ -130,19 +130,53 @@ public class OnnxPlugin extends Plugin {
             float[][] logitsArray = (float[][]) result.get(0).getValue();
             float[] scores = logitsArray[0];
 
-            // 8. Softmax to get probabilities
+            // 8. Softmax for real-world confidence
             float[] probs = softmax(scores);
             int maxIdx = argmax(probs);
             float confidence = probs[maxIdx];
 
-            String label = (maxIdx < labels.length)
-                ? labels[maxIdx]
-                : "Unknown (class " + maxIdx + ")";
+            // 8.1. Noise rejection calculation (Saturation & Variance)
+            float sum = 0, sqSum = 0, saturationSum = 0;
+            // Use the original pixels array for raw stats (before normalization)
+            for (int px : pixels) {
+                float r = (px >> 16) & 0xFF;
+                float g = (px >> 8) & 0xFF;
+                float b = px & 0xFF;
+                float avg = (r + g + b) / 3.0f;
+                sum += avg;
+                sqSum += avg * avg;
+                saturationSum += (Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r)) / 3.0f;
+            }
+            float n = pixels.length;
+            float meanVal = sum / n;
+            float variance = (sqSum / n) - (meanVal * meanVal);
+            float saturation = saturationSum / n;
 
-            // Return pixel stats to prove the model is seeing the actual image
-            float[] stats = getPixelStats(tensorData);
-            float mean = stats[0];
-            float stdDev = stats[1];
+            // 8.2. Rejection Logic
+            // Logit gap is the difference between the top prediction and the bottom
+            float minVal = scores[0];
+            for (float s : scores) if (s < minVal) minVal = s;
+            float logitGap = scores[maxIdx] - minVal;
+
+            boolean isLikelyNoise = false;
+            // 1. Saturation (Real leaves are not gray/white diagrams)
+            if (saturation < 6.0f) isLikelyNoise = true;
+            // 2. Variance (Diagrams have sharp high-contrast edges)
+            if (variance < 20 || variance > 8000) isLikelyNoise = true;
+            
+            // 3. Model-specific decisive checks
+            if ("blackgram".equals(modelName)) {
+                if (confidence < 0.45) isLikelyNoise = true;
+            } else {
+                // Chickpea (resnet50) requires higher decisive logits
+                if (scores[maxIdx] < 3.5f || logitGap < 5.0f || confidence < 0.60) isLikelyNoise = true;
+            }
+
+            String label = labels[maxIdx];
+            if (isLikelyNoise) {
+                label = "No Crop Detected";
+                Log.w(TAG, "[Noise Rejected] Sat: " + saturation + ", Var: " + variance + ", Logit: " + scores[maxIdx]);
+            }
 
             // 9. Cleanup
             inputTensor.close();
@@ -154,16 +188,17 @@ public class OnnxPlugin extends Plugin {
             // 10. Return to JS
             JSObject ret = new JSObject();
             ret.put("label", label);
-            ret.put("confidence", Math.round(confidence * 100)); // 0-100 integer
+            ret.put("confidence", isLikelyNoise ? 0 : Math.round(confidence * 100)); // 0-100 integer
             ret.put("classIndex", maxIdx);
             ret.put("allScores", scoresToJson(probs, labels));
-            ret.put("rawLogits", scoresToJson(scores, labels)); // Raw model outputs
+            ret.put("rawLogits", scoresToJson(scores, labels));
             ret.put("modelUsed", modelFileName);
-            ret.put("imgMean", mean);
-            ret.put("imgStdDev", stdDev);
+            ret.put("isNoise", isLikelyNoise);
+            ret.put("saturation", saturation);
+            ret.put("variance", variance);
             ret.put("timestamp", System.currentTimeMillis());
             
-            Log.i(TAG, "Inference: " + label + " (Conf: " + Math.round(confidence * 100) + "%, Mean: " + mean + ", Std: " + stdDev + ")");
+            Log.i(TAG, "Inference: " + label + " (Conf: " + Math.round(confidence * 100) + "%)");
             call.resolve(ret);
 
         } catch (Exception e) {

@@ -1,5 +1,9 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScanLine, TrendingUp, Shield, Leaf, ChevronRight, Sprout } from 'lucide-react';
+import { 
+  ScanLine, TrendingUp, Shield, Leaf, ChevronRight, Sprout,
+  Sun, Moon, Globe, ChevronDown
+} from 'lucide-react';
 import { type Scan } from '../lib/supabase';
 import { type Profile } from '../lib/supabase';
 import SeverityBadge from '../components/SeverityBadge';
@@ -12,12 +16,27 @@ interface HomePageProps {
   onScan: () => void;
   onViewHistory: () => void;
   onViewScan: (scan: Scan) => void;
+  isDarkMode: boolean;
+  toggleTheme: () => void;
 }
+
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'हिंदी' },
+  { code: 'mr', label: 'मराठी' },
+  { code: 'pa', label: 'ਪੰਜਾਬੀ' },
+  { code: 'te', label: 'తెలుగు' },
+  { code: 'ta', label: 'தமிழ்' },
+  { code: 'kn', label: 'ಕನ್ನಡ' },
+  { code: 'gu', label: 'ગુજરાતી' },
+  { code: 'bn', label: 'বাংলা' },
+];
 
 const TIPS_COUNT = 5;
 
-export default function HomePage({ profile, isGuest, scans, onScan, onViewHistory, onViewScan }: HomePageProps) {
-  const { t } = useTranslation();
+export default function HomePage({ profile, isGuest, scans, onScan, onViewHistory, onViewScan, isDarkMode, toggleTheme }: HomePageProps) {
+  const { t, i18n } = useTranslation();
+  const [showLang, setShowLang] = useState(false);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('good_morning') : hour < 17 ? t('good_afternoon') : t('good_evening');
@@ -34,12 +53,57 @@ export default function HomePage({ profile, isGuest, scans, onScan, onViewHistor
 
   return (
     <div className="flex flex-col gap-5 px-4 pt-12 pb-28 bg-mesh min-h-screen">
-      {/* Header */}
-      <div className="animate-fade-up">
-        <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>{greeting} 👋</p>
-        <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--text)' }}>
-          {userName}
-        </h1>
+      {/* Header with controls - z-50 to stay above cards */}
+      <div className="flex items-start justify-between animate-fade-up relative z-50">
+        <div>
+          <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>{greeting} 👋</p>
+          <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--text)' }}>
+            {userName}
+          </h1>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* Language Selector */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowLang(!showLang)}
+              className="w-10 h-10 rounded-xl glass flex items-center justify-center press"
+              style={{ color: 'var(--green)' }}
+            >
+              <Globe size={18} />
+            </button>
+            
+            {showLang && (
+              <div className="absolute top-full mt-2 right-0 w-36 glass rounded-2xl p-2 shadow-xl animate-scale-in z-[100]">
+                <div className="max-h-48 overflow-auto gap-1 flex flex-col">
+                  {LANGUAGES.map(l => (
+                    <button
+                      key={l.code}
+                      onClick={() => {
+                        i18n.changeLanguage(l.code);
+                        setShowLang(false);
+                      }}
+                      className={`text-left px-3 py-2 rounded-lg text-xs transition-colors ${
+                        i18n.language === l.code ? 'bg-[var(--green)] text-white' : 'hover:bg-white/10 text-[var(--text)]'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Theme Toggle */}
+          <button 
+            onClick={toggleTheme}
+            className="w-10 h-10 rounded-xl glass flex items-center justify-center press"
+            style={{ color: 'var(--green)' }}
+          >
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Quick Scan CTA */}
