@@ -7,13 +7,13 @@ import { getMetadata } from './crop-metadata';
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/';
 ort.env.wasm.numThreads = 1; // More stable on mobile
 
-// --- Labels for each model (UPDATE THESE BASED ON YOUR TRAINING CLASSES) ---
+// --- Labels for each model (SYNCED WITH TRAINING/TESTING RESULTS) ---
 const LABELS_RESNET50 = [
-  "Blight", "Healthy", "Leaf Spot", "Wilt"
+  "Healthy", "Wilt", "Blight", "Leaf Spot"
 ];
 
 const LABELS_BLACKGRAM = [
-  "Anthracnose", "Cercospora", "Healthy", "Powdery Mildew", "Yellow Mosaic Virus"
+  "Healthy", "Anthracnose", "Cercospora", "Powdery Mildew", "Yellow Mosaic Virus", "Unknown/Background"
 ];
 
 // Cache for ONNX sessions to avoid reloading on every scan
@@ -82,8 +82,8 @@ export async function analyzeOffline(
     const output = results.output.data as Float32Array;
 
     // 6. Calculate Pixel Stats for Noise Rejection
-    // Real plant images have significant variance and color Saturation.
     let sum = 0, sqSum = 0, colorDiffSum = 0;
+    let greenAdvantage = 0; // Cumulative Green richness
     const pData = imageData.data;
     const len = pData.length / 4;
     for (let i = 0; i < len; i++) {
@@ -94,21 +94,31 @@ export async function analyzeOffline(
       const avg = (r + g + b) / 3;
       sum += avg;
       sqSum += avg * avg;
+      
       // Absolute difference between channels (Saturation indicator)
       colorDiffSum += (Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r)) / 3;
+      
+      // Greenness: In leaves, Green is usually the dominant channel
+      if (g > r + 10 && g > b + 10) greenAdvantage++;
     }
     const meanVal = sum / len;
     const variance = (sqSum / len) - (meanVal * meanVal);
     const avgColorDiff = colorDiffSum / len;
+    const greenRatio = greenAdvantage / len;
 
-    // 7. Find max confidence
+    // 7. Find top 2 confidences for Margin analysis
     let maxIdx = 0;
+    let secondMaxVal = -Infinity;
     let maxVal = -Infinity;
     let minVal = Infinity;
+    
     for (let i = 0; i < output.length; i++) {
         if (output[i] > maxVal) {
+            secondMaxVal = maxVal;
             maxVal = output[i];
             maxIdx = i;
+        } else if (output[i] > secondMaxVal) {
+            secondMaxVal = output[i];
         }
         if (output[i] < minVal) {
             minVal = output[i];
@@ -116,6 +126,7 @@ export async function analyzeOffline(
     }
 
     const logitGap = maxVal - minVal;
+    const margin = maxVal - secondMaxVal;
 
     // Softmax for real confidence score
     const expSum = Array.from(output).reduce((acc, val) => acc + Math.exp(val), 0);
@@ -127,34 +138,36 @@ export async function analyzeOffline(
     let isLikelyNoise = false;
     
     // LOGIC: 
-    // 1. Grayscale/Diagram Check: Real leaves are saturated. Diagrams are mostly gray/white/tan.
-    //    We increase threshold to 6.0 for better rejection of "near-gray" documents.
-    if (avgColorDiff < 6.0) isLikelyNoise = true; 
+    // 1. Saturation Check: Real leaves are colorful. Diagrams/Backgrounds are gray-ish.
+    if (avgColorDiff < 7.0) isLikelyNoise = true; 
     
-    // 2. Variance Check: 
-    //    Solid colors (walls) -> variance < 20
-    //    Technical diagrams (high contrast text/lines) -> variance > 8000
-    if (variance < 20 || variance > 8000) isLikelyNoise = true;
+    // 2. Variance Check: Solid walls (low var) or High-contrast text (excessive var)
+    if (variance < 25 || variance > 8500) isLikelyNoise = true;
     
-    // 3. Logit Sensitivity:
-    //    If the model is guessing on noise, logits are usually compressed.
+    // 3. Greenness Check: Foliage detection
+    //    A real healthy or mildly diseased leaf should have a significant green presence.
+    //    Extremely low greenRatio (<5%) is usually a non-plant object.
+    if (greenRatio < 0.05) isLikelyNoise = true;
+
+    // 4. Model Confidence & Stability (Logit Margin)
     if (cropType !== 'blackgram') {
-      // resnet50 thresholds (chickpea) — STIFFENED for higher reliability
-      if (maxVal < 3.5 || logitGap < 5.0 || confidence < 60) isLikelyNoise = true;
+      // resnet50 (chickpea)
+      // If the top prediction is not dominant enough, it's likely noise the model is "guessing" on.
+      if (maxVal < 3.0 || margin < 1.0 || confidence < 60) isLikelyNoise = true;
     } else {
-      // blackgram model
-      if (confidence < 45 || diseaseName === 'Unknown/Background') isLikelyNoise = true;
+      // blackgram
+      if (confidence < 45 || diseaseName.includes('Background') || margin < 0.8) isLikelyNoise = true;
     }
 
     if (isLikelyNoise) {
-      console.log(`[Noise Rejected] Saturation: ${avgColorDiff.toFixed(2)}, Variance: ${variance.toFixed(2)}, MaxLogit: ${maxVal.toFixed(2)}, Gap: ${logitGap.toFixed(2)}`);
+      console.log(`[Noise Rejected] Saturation: ${avgColorDiff.toFixed(2)}, GreenRatio: ${greenRatio.toFixed(2)}, Variance: ${variance.toFixed(2)}, MaxLogit: ${maxVal.toFixed(2)}, Margin: ${margin.toFixed(2)}`);
       return {
         diseaseName: 'No Crop Detected',
-        cropType: 'Unknown',
-        confidence: isLikelyNoise ? 0 : confidence, // Force 0 if rejected
+        cropType: cropType === 'blackgram' ? 'Blackgram' : 'Chickpea',
+        confidence: 0,
         severity: 'low',
         description: cropType !== 'blackgram'
-          ? 'No clear chickpea leaf detected. This model identifies Wilt, Leaf Spot, and Blight on chickpea plants.'
+          ? 'No clear chickpea leaf detected. This model identifies Wilt, Blight, and Leaf Spot on chickpea plants.'
           : 'No blackgram leaf detected. Ensure you are scanning a blackgram leaf in clear, natural light.',
         symptoms: [],
         causes: [],

@@ -128,19 +128,34 @@ def download_image(url: str):
         return None
 
 
-def make_synthetic(rgb: tuple) -> Image.Image:
-    """Create a simple solid-color test image."""
-    return Image.new("RGB", (224, 224), color=rgb)
+def get_stats(img: Image.Image):
+    arr = np.array(img, dtype=np.float32)
+    p_data = arr.reshape(-1, 3)
+    r, g, b = p_data[:, 0], p_data[:, 1], p_data[:, 2]
+    avg = (r + g + b) / 3.0
+    mean_val = np.mean(avg)
+    variance = np.var(avg)
+    # Absolute difference between channels (Saturation indicator)
+    color_diff = np.mean((np.abs(r - g) + np.abs(g - b) + np.abs(b - r)) / 3.0)
+    return variance, color_diff
 
 
-def print_result(name, logits, probs, labels):
+def print_result(name, logits, probs, labels, img=None):
     idx = int(np.argmax(logits))
     margin = sorted(logits)[-1] - sorted(logits)[-2]
     print(f"  Image   : {name}")
+    if img:
+        var, sat = get_stats(img)
+        print(f"  Stats   : Var={var:.1f}, Sat={sat:.1f}")
     print(f"  Logits  : {np.round(logits, 2)}")
     print(f"  Probs   : {np.round(probs, 1)}%")
     print(f"  Predicted → [{idx}] {labels[idx]}  (conf={probs[idx]:.1f}%, margin={margin:.2f})")
     print()
+
+
+def make_synthetic(rgb: tuple) -> Image.Image:
+    """Create a simple solid-color test image."""
+    return Image.new("RGB", (224, 224), color=rgb)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -167,8 +182,8 @@ def main():
     print()
 
     # Use the current hardcoded labels in the Java plugin
-    CURRENT_RESNET_LABELS   = ["Healthy", "Early Blight", "Late Blight", "Rust"]
-    CURRENT_BLACKGRAM_LABELS= ["Healthy", "Cercospora Leaf Spot", "Yellow Mosaic Virus", "Powdery Mildew", "Anthracnose"]
+    CURRENT_RESNET_LABELS   = ["Healthy", "Wilt", "Blight", "Leaf Spot"]
+    CURRENT_BLACKGRAM_LABELS= ["Healthy", "Anthracnose", "Cercospora", "Powdery Mildew", "Yellow Mosaic Virus", "Background"]
 
     RESNET_SUMMARY   = {}  # idx -> [list of (image_name, conf)]
     BLACKGRAM_SUMMARY= {}
@@ -222,13 +237,15 @@ def main():
 
     print(">> RESNET50:")
     for name, rgb, hint, _ in SYNTHETIC_TESTS:
-        logits, probs = infer(sess_r, preprocess(make_synthetic(rgb)))
-        print_result(f"{name} [hint={hint}]", logits, probs, CURRENT_RESNET_LABELS)
+        img = make_synthetic(rgb)
+        logits, probs = infer(sess_r, preprocess(img))
+        print_result(f"{name} [hint={hint}]", logits, probs, CURRENT_RESNET_LABELS, img=img)
 
     print(">> BLACKGRAM:")
     for name, rgb, hint, _ in SYNTHETIC_TESTS:
-        logits, probs = infer(sess_bg, preprocess(make_synthetic(rgb)))
-        print_result(f"{name} [hint={hint}]", logits, probs, CURRENT_BLACKGRAM_LABELS)
+        img = make_synthetic(rgb)
+        logits, probs = infer(sess_bg, preprocess(img))
+        print_result(f"{name} [hint={hint}]", logits, probs, CURRENT_BLACKGRAM_LABELS, img=img)
 
     # ── Phase 3: Download real images ────────────────────────────────────────
     print("─" * 70)
@@ -250,11 +267,11 @@ def main():
 
         if target in ("resnet50", "both"):
             logits, probs = infer(sess_r, tensor)
-            print_result(f"resnet50 → {ground_truth}", logits, probs, CURRENT_RESNET_LABELS)
+            print_result(f"resnet50 → {ground_truth}", logits, probs, CURRENT_RESNET_LABELS, img=img)
 
         if target in ("blackgram", "both"):
             logits, probs = infer(sess_bg, tensor)
-            print_result(f"blackgram → {ground_truth}", logits, probs, CURRENT_BLACKGRAM_LABELS)
+            print_result(f"blackgram → {ground_truth}", logits, probs, CURRENT_BLACKGRAM_LABELS, img=img)
 
     if real_image_count == 0:
         print("Could not download any real images (offline or URL changed).")
