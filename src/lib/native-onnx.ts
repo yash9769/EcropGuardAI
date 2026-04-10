@@ -71,9 +71,15 @@ export async function analyzeWithNativeOnnx(
   let raw: OnnxPredictResult;
   try {
     raw = await OnnxPlugin.predict({ imageBase64, model });
-    console.log(`[Native ONNX] ${model} → ${raw.label} (${raw.confidence}%)`, {
-      maxLogit: Math.max(...Object.values(raw.rawLogits)),
-      logitGap: Math.max(...Object.values(raw.rawLogits)) - Math.min(...Object.values(raw.rawLogits)),
+    
+    const logits = raw.rawLogits || {};
+    const logitValues = Object.values(logits) as number[];
+    const maxLogit = logitValues.length > 0 ? Math.max(...logitValues) : 0;
+    const minLogit = logitValues.length > 0 ? Math.min(...logitValues) : 0;
+
+    console.log(`[Native ONNX] → ${raw.label} (${raw.confidence}%)`, {
+      maxLogit,
+      logitGap: maxLogit - minLogit,
       imgStdDev: raw.imgStdDev,
     });
   } catch (err) {
@@ -128,6 +134,37 @@ export async function analyzeWithNativeOnnx(
   // Blackgram model has a lower effective confidence range — flag but still show result
   const isLowConfidence = model === 'blackgram' ? raw.confidence < 50 : raw.confidence < 60;
 
+    // Probabilistic Reasoning: Top 3 Predictions
+    const probEntries = Object.entries(raw.allScores || {}).map(([label, probability]) => {
+      // The native plugin might return raw probabilities as 0-1 floats or 0-100 ints, check bounds
+      const probValue = probability <= 1.01 ? Math.round(probability * 100) : Math.round(probability);
+      return { label, probability: probValue };
+    });
+    probEntries.sort((a, b) => b.probability - a.probability);
+    const topPredictions = probEntries.slice(0, 3);
+    
+    // Soft Computing: Fuzzy Logic
+    let fuzzyConfidence: 'Low' | 'Medium' | 'High' = 'Low';
+    if (raw.confidence >= 80) fuzzyConfidence = 'High';
+    else if (raw.confidence >= 50) fuzzyConfidence = 'Medium';
+    
+    // Soft Computing: Uncertainty Handling
+    let uncertaintyMessage = 'Confident prediction based on visual evidence.';
+    if (fuzzyConfidence === 'Low') {
+      uncertaintyMessage = 'Prediction extremely uncertain due to unclear image features. Please retake.';
+    } else if (fuzzyConfidence === 'Medium') {
+      uncertaintyMessage = 'Prediction moderately uncertain. Multiple disease possibilities exist.';
+    }
+    
+    // Hybrid Reasoning: Symptom-Disease Graph (PGM-inspired)
+    const symptomWeights = meta.symptoms.slice(0, 3).map(symptom => {
+      const diseasesRecord: Record<string, number> = {};
+      diseasesRecord[raw.label] = 0.6;
+      if (topPredictions[1]) diseasesRecord[topPredictions[1].label] = 0.3;
+      if (topPredictions[2]) diseasesRecord[topPredictions[2].label] = 0.1;
+      return { symptom, diseases: diseasesRecord };
+    });
+
   return {
     diseaseName: raw.label,
     cropType: model === 'blackgram' ? 'Blackgram' : 'Chickpea',
@@ -147,5 +184,9 @@ export async function analyzeWithNativeOnnx(
     rawLogits: raw.rawLogits,
     modelUsed: raw.modelUsed,
     timestamp: raw.timestamp,
+    topPredictions,
+    fuzzyConfidence,
+    uncertaintyMessage,
+    symptomWeights
   };
 }

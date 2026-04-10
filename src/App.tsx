@@ -6,11 +6,11 @@ import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import ScanPage from './pages/ScanPage';
 import HistoryPage from './pages/HistoryPage';
-import ProfilePage from './pages/ProfilePage';
+import AssistantPage from './pages/AssistantPage';
 import BottomNav from './components/BottomNav';
 import { type Scan } from './lib/supabase';
 
-type Tab = 'home' | 'scan' | 'history' | 'profile';
+type Tab = 'home' | 'scan' | 'history' | 'assistant';
 
 export default function App() {
   const { t } = useTranslation();
@@ -119,15 +119,8 @@ export default function App() {
           />
         </div>
 
-        <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
-          <ProfilePage
-            profile={profile}
-            isGuest={isGuest}
-            onUpdate={updateProfile}
-            onSignOut={signOut}
-            isDarkMode={isDarkMode}
-            toggleTheme={toggleTheme}
-          />
+        <div style={{ display: activeTab === 'assistant' ? 'block' : 'none' }}>
+          <AssistantPage />
         </div>
 
         {/* Bottom navigation */}

@@ -39,7 +39,7 @@ function ExpandSection({
   color: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   return (
     <div
       className="glass rounded-2xl overflow-hidden"
@@ -116,7 +116,7 @@ export default function ScanPage({ onSave }: ScanPageProps) {
   }
 
   async function analyze() {
-    if (!imageData) return;
+    if (!imageData || step === 'analyzing') return;
     setStep('analyzing');
     setAnalyzeError('');
     try {
@@ -420,10 +420,45 @@ export default function ScanPage({ onSave }: ScanPageProps) {
                 {result.diseaseName}
               </h2>
               <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>{result.cropType}</p>
-              <SeverityBadge severity={result.severity} />
+              <div className="flex gap-2">
+                <SeverityBadge severity={result.severity} />
+                {result.fuzzyConfidence && (
+                  <div className="text-[10px] font-bold px-2 flex items-center justify-center rounded-full bg-[#1a3a1a] border border-[#22c55e]/30 text-[#4ade80]">
+                    Fuzzy Logic: {result.fuzzyConfidence}
+                  </div>
+                )}
+              </div>
             </div>
             <ConfidenceRing value={result.confidence} />
           </div>
+
+          {result.uncertaintyMessage && (
+            <div className="mt-3 p-3 text-xs bg-black/20 rounded-xl text-center border-l-4" style={{ borderColor: result.fuzzyConfidence === 'Low' ? '#ef4444' : result.fuzzyConfidence === 'Medium' ? '#f59e0b' : '#22c55e', color: 'var(--text-muted)' }}>
+              {result.uncertaintyMessage}
+            </div>
+          )}
+
+          {/* Probabilistic Reasoning: Top 3 Predictions */}
+          {result.topPredictions && result.topPredictions.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <p className="text-[10px] uppercase font-bold text-[var(--green)] mb-2 flex items-center gap-1">
+                <Zap size={12} /> Probabilistic Reasoning (Top 3)
+              </p>
+              <div className="space-y-1.5">
+                {result.topPredictions.map((pred, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-muted)] truncate max-w-[180px]">{pred.label}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1 bg-black/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-[var(--green)]" style={{ width: `${pred.probability}%` }} />
+                      </div>
+                      <span className="text-[var(--text)] font-mono w-8 text-right">{pred.probability}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {result.description && (
             <div className="text-sm mt-4 pt-4 leading-relaxed space-y-3" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
@@ -518,6 +553,29 @@ export default function ScanPage({ onSave }: ScanPageProps) {
                   </li>
                 ))}
               </ul>
+            </ExpandSection>
+          )}
+
+          {result.symptomWeights && result.symptomWeights.length > 0 && (
+            <ExpandSection title="Symptom-Disease Graph (PGM)" icon={TrendingUp} color="var(--blue)">
+              <div className="space-y-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs italic bg-black/20 p-2 rounded">
+                  Hybrid Reasoning combines visible symptoms with model probabilities mapping relationships in a graph structure.
+                </p>
+                {result.symptomWeights.map((sw, i) => (
+                  <div key={i} className="border-l-2 border-[var(--blue)] pl-3">
+                    <p className="font-bold text-[var(--text)] text-xs mb-1">Observation: {sw.symptom}</p>
+                    <div className="space-y-1">
+                      {Object.entries(sw.diseases).map(([disease, weight], j) => (
+                        <div key={j} className="flex justify-between text-[11px]">
+                          <span>↳ {disease}</span>
+                          <span className="font-mono text-[var(--blue)]">Weight: {weight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </ExpandSection>
           )}
 

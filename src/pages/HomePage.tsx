@@ -7,6 +7,7 @@ import {
 import { type Scan } from '../lib/supabase';
 import { type Profile } from '../lib/supabase';
 import SeverityBadge from '../components/SeverityBadge';
+import WeatherWidget from '../components/WeatherWidget';
 import { formatDate } from '../lib/utils';
 
 interface HomePageProps {
@@ -144,6 +145,9 @@ export default function HomePage({ profile, isGuest, scans, onScan, onViewHistor
           </div>
         </div>
       </button>
+
+      {/* Weather Widget */}
+      <WeatherWidget />
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 animate-fade-up delay-200">

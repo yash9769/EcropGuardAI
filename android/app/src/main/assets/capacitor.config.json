@@ -1,6 +1,6 @@
 {
-	"appId": "com.ecropguard.app",
-	"appName": "eCropGuard",
+	"appId": "com.agrisense.app",
+	"appName": "AgriSense",
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https"

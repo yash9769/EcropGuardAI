@@ -36,6 +36,12 @@ export type DiagnosisResult = {
   // Enriched report fields
   impact?: string;
   organic_controls?: string[];
+  
+  // Advanced features (Probabilistic, Fuzzy, Hybrid)
+  topPredictions?: Array<{label: string, probability: number}>;
+  fuzzyConfidence?: 'Low' | 'Medium' | 'High';
+  uncertaintyMessage?: string;
+  symptomWeights?: Array<{symptom: string, diseases: Record<string, number>}>;
 };
 
 export const CONFIDENCE_THRESHOLD = 55; // Primary rejection is now logit gap; this is secondary
@@ -65,31 +71,25 @@ export async function analyzeCropImage(
 
   // ── 1. NATIVE ONNX (Android) ──────────────────────────────────────────────
   if (Capacitor.isNativePlatform()) {
-    console.log('[eCropGuard] Native Analysis...');
-    
-    const resBlackgram = await analyzeWithNativeOnnx(base64Image, 'blackgram');
-    const resChickpea = await analyzeWithNativeOnnx(base64Image, 'resnet50');
-    return pickBest(resBlackgram, resChickpea);
+    console.log('[AgriSense] Native Analysis (Dual-Model)...');
+    return analyzeWithNativeOnnx(base64Image, 'general');
   }
 
   // ── 2. WEB ONNX (Offline Web) ─────────────────────────────────────────────
   try {
-    console.log('[eCropGuard] Running Web ONNX inference (both models)...');
+    console.log('[AgriSense] Running Web ONNX inference (Dual-Model)...');
     const dataUrl = base64Image.startsWith('data:') 
        ? base64Image 
        : `data:${mimeType};base64,${base64Image}`;
        
-    // Sequential to save memory on lower end devices since it's Web WASM
-    const resBlackgram = await analyzeOffline(dataUrl, 'blackgram');
-    const resChickpea = await analyzeOffline(dataUrl, 'resnet50');
-    return pickBest(resBlackgram, resChickpea);
+    return analyzeOffline(dataUrl, 'general');
   } catch (err) {
-    console.log('[eCropGuard] Web ONNX failed, falling back to Gemini if available...', err);
+    console.log('[AgriSense] Web ONNX failed, falling back to Gemini if available...', err);
   }
 
   // ── 3. GEMINI API — web fallback if key is available ─────────────────────
   if (apiKey && apiKey.trim() !== '') {
-    console.log('[eCropGuard] Running Gemini cloud inference...');
+    console.log('[AgriSense] Running Gemini cloud inference...');
     return analyzeWithGemini(base64Image, mimeType, language);
   }
 

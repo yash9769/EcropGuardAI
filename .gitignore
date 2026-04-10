@@ -34,3 +34,8 @@ dist-ssr
 android/app/build
 android/.gradle
 android/local.properties
+
+# Local env and artifacts
+.venv/
+artifacts/
+android/app/src/main/assets/public/

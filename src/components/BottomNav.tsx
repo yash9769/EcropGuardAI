@@ -1,8 +1,8 @@
-import { Home, ScanLine, History, User } from 'lucide-react';
+import { Home, ScanLine, History, Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/utils';
 
-type Tab = 'home' | 'scan' | 'history' | 'profile';
+type Tab = 'home' | 'scan' | 'history' | 'assistant';
 
 interface BottomNavProps {
   active: Tab;
@@ -13,7 +13,7 @@ const navItems = [
   { id: 'home' as Tab, icon: Home, label: 'home' },
   { id: 'scan' as Tab, icon: ScanLine, label: 'scan' },
   { id: 'history' as Tab, icon: History, label: 'history' },
-  { id: 'profile' as Tab, icon: User, label: 'profile' },
+  { id: 'assistant' as Tab, icon: Bot, label: 'assistant' },
 ];
 
 export default function BottomNav({ active, onChange }: BottomNavProps) {

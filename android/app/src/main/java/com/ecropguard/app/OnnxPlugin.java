@@ -58,162 +58,136 @@ public class OnnxPlugin extends Plugin {
      * JS call: OnnxPlugin.predict({ imageBase64: "...", model: "resnet50" | "blackgram" })
      * Returns: { label: string, confidence: number, classIndex: number, allScores: {}, rawLogits: {}, modelUsed: string, timestamp: number }
      */
+    /**
+     * JS call: OnnxPlugin.predict({ imageBase64: "..." })
+     * Returns: { label: string, confidence: number, classIndex: number, allScores: {}, modelUsed: string, isNoise: boolean }
+     */
     @PluginMethod
     public void predict(PluginCall call) {
         String imageBase64 = call.getString("imageBase64");
-        String modelName   = call.getString("model", "resnet50");
 
         if (imageBase64 == null || imageBase64.isEmpty()) {
             call.reject("imageBase64 is required");
             return;
         }
 
-        // Strip data URL prefix if present
         if (imageBase64.contains(",")) {
             imageBase64 = imageBase64.split(",")[1];
         }
 
         try {
-            // 1. Decode base64 → Bitmap
             byte[] imageBytes = Base64.decode(imageBase64, Base64.DEFAULT);
             Bitmap originalBitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
             if (originalBitmap == null) {
-                call.reject("Failed to decode image. Make sure it is a valid JPEG/PNG.");
+                call.reject("Failed to decode image");
                 return;
             }
 
-            // 2. Resize to 224×224
             Bitmap bitmap = Bitmap.createScaledBitmap(originalBitmap, INPUT_SIZE, INPUT_SIZE, true);
-
-            // 3. Choose model & labels
-            String modelFileName;
-            String[] labels;
-            if ("blackgram".equals(modelName)) {
-                modelFileName = "public/models/blackgram.onnx";
-                labels = LABELS_BLACKGRAM;
-            } else {
-                modelFileName = "public/models/resnet50.onnx";
-                labels = LABELS_RESNET50;
-            }
-
-            // 4. Load ONNX model from assets
-            Context ctx = getContext();
-            InputStream modelStream;
-            try {
-                modelStream = ctx.getAssets().open(modelFileName);
-            } catch (Exception e) {
-                call.reject("Model file NOT FOUND in assets: " + modelFileName + ". Please ensure it is present in android/app/src/main/assets/" + modelFileName);
-                return;
-            }
-            byte[] modelBytes = modelStream.readAllBytes();
-            modelStream.close();
-
-            OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
-            opts.setIntraOpNumThreads(2);
-            OrtSession session = ortEnv.createSession(modelBytes, opts);
-
-            // 5. Preprocess: HWC Bitmap → CHW Float32 tensor (1,3,224,224)
-            float[] tensorData = bitmapToTensor(bitmap);
+            int[] pixels = new int[INPUT_SIZE * INPUT_SIZE];
+            bitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE);
+            float[] tensorData = bitmapToTensor(pixels);
+            
             long[] shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
-            OnnxTensor inputTensor = OnnxTensor.createTensor(
-                ortEnv,
-                FloatBuffer.wrap(tensorData),
-                shape
-            );
+            OnnxTensor inputTensor = OnnxTensor.createTensor(ortEnv, FloatBuffer.wrap(tensorData), shape);
 
-            // 6. Run inference
-            Map<String, OnnxTensor> feeds = new HashMap<>();
-            feeds.put("input", inputTensor);
-            OrtSession.Result result = session.run(feeds);
+            // Run ResNet50 (Chickpea)
+            Prediction resChickpea = runModelInference(inputTensor, "public/models/resnet50_int8.onnx", LABELS_RESNET50);
+            // Run Blackgram
+            Prediction resBlackgram = runModelInference(inputTensor, "public/models/blackgram_int8.onnx", LABELS_BLACKGRAM);
 
-            // 7. Extract output logits
-            float[][] logitsArray = (float[][]) result.get(0).getValue();
-            float[] scores = logitsArray[0];
+            // Selection Logic: Take the one with higher confidence
+            Prediction winner = (resBlackgram.confidence > resChickpea.confidence) ? resBlackgram : resChickpea;
+            String[] winnerLabels = (winner == resBlackgram) ? LABELS_BLACKGRAM : LABELS_RESNET50;
 
-            // 8. Softmax for real-world confidence
-            float[] probs = softmax(scores);
-            int maxIdx = argmax(probs);
-            float confidence = probs[maxIdx];
-
-            // 8.1. Noise rejection calculation (Saturation & Variance)
+            // Saturation & Variance for Noise Rejection
             float sum = 0, sqSum = 0, saturationSum = 0;
-            // Use the original pixels array for raw stats (before normalization)
             for (int px : pixels) {
-                float r = (px >> 16) & 0xFF;
-                float g = (px >> 8) & 0xFF;
-                float b = px & 0xFF;
+                float r = (px >> 16) & 0xFF, g = (px >> 8) & 0xFF, b = px & 0xFF;
                 float avg = (r + g + b) / 3.0f;
-                sum += avg;
-                sqSum += avg * avg;
+                sum += avg; sqSum += avg * avg;
                 saturationSum += (Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r)) / 3.0f;
             }
             float n = pixels.length;
-            float meanVal = sum / n;
-            float variance = (sqSum / n) - (meanVal * meanVal);
+            float variance = (sqSum / n) - ((sum / n) * (sum / n));
             float saturation = saturationSum / n;
 
-            // 8.2. Rejection Logic
-            // Logit gap is the difference between the top prediction and the bottom
-            float minVal = scores[0];
-            for (float s : scores) if (s < minVal) minVal = s;
-            float logitGap = scores[maxIdx] - minVal;
-
             boolean isLikelyNoise = false;
-            // 1. Saturation (Real leaves are not gray/white diagrams)
-            if (saturation < 6.0f) isLikelyNoise = true;
-            // 2. Variance (Diagrams have sharp high-contrast edges)
-            if (variance < 20 || variance > 8000) isLikelyNoise = true;
+            if (saturation < 6.0f || variance < 20 || variance > 8000) isLikelyNoise = true;
             
-            // 3. Model-specific decisive checks
-            if ("blackgram".equals(modelName)) {
-                if (confidence < 0.45) isLikelyNoise = true;
+            // Model specific additional noise gating
+            if (winner == resChickpea) {
+                if (winner.topLogit < 3.2f || winner.confidence < 0.60f) isLikelyNoise = true;
             } else {
-                // Chickpea (resnet50) requires higher decisive logits
-                if (scores[maxIdx] < 3.5f || logitGap < 5.0f || confidence < 0.60) isLikelyNoise = true;
+                if (winner.confidence < 0.45f) isLikelyNoise = true;
             }
 
-            String label = labels[maxIdx];
-            if (isLikelyNoise) {
-                label = "No Crop Detected";
-                Log.w(TAG, "[Noise Rejected] Sat: " + saturation + ", Var: " + variance + ", Logit: " + scores[maxIdx]);
-            }
+            String label = winner.label;
+            if (isLikelyNoise) label = "No Crop Detected";
 
-            // 9. Cleanup
+            // Cleanup & Response
             inputTensor.close();
-            result.close();
-            session.close();
             bitmap.recycle();
             if (!originalBitmap.isRecycled()) originalBitmap.recycle();
 
-            // 10. Return to JS
             JSObject ret = new JSObject();
             ret.put("label", label);
-            ret.put("confidence", isLikelyNoise ? 0 : Math.round(confidence * 100)); // 0-100 integer
-            ret.put("classIndex", maxIdx);
-            ret.put("allScores", scoresToJson(probs, labels));
-            ret.put("rawLogits", scoresToJson(scores, labels));
-            ret.put("modelUsed", modelFileName);
+            ret.put("confidence", isLikelyNoise ? 0 : Math.round(winner.confidence * 100));
+            ret.put("classIndex", winner.index);
+            ret.put("allScores", scoresToJson(winner.probs, winnerLabels));
+            ret.put("rawLogits", scoresToJson(winner.logits, winnerLabels));
+            ret.put("modelUsed", winner.modelName);
             ret.put("isNoise", isLikelyNoise);
-            ret.put("saturation", saturation);
-            ret.put("variance", variance);
+            ret.put("cropType", winner == resChickpea ? "Chickpea" : "Blackgram");
             ret.put("timestamp", System.currentTimeMillis());
             
-            Log.i(TAG, "Inference: " + label + " (Conf: " + Math.round(confidence * 100) + "%)");
             call.resolve(ret);
 
         } catch (Exception e) {
-            Log.e(TAG, "ONNX inference failed", e);
-            call.reject("ONNX inference failed: " + e.getMessage());
+            Log.e(TAG, "Inference failed", e);
+            call.reject("Inference failed: " + e.getMessage());
         }
+    }
+
+    private static class Prediction {
+        String label;
+        float confidence;
+        float topLogit;
+        int index;
+        float[] logits;
+        float[] probs;
+        String modelName;
+    }
+
+    private Prediction runModelInference(OnnxTensor input, String modelPath, String[] labels) throws Exception {
+        InputStream is = getContext().getAssets().open(modelPath);
+        byte[] modelBytes = is.readAllBytes();
+        is.close();
+
+        OrtSession session = ortEnv.createSession(modelBytes, new OrtSession.SessionOptions());
+        OrtSession.Result result = session.run(Collections.singletonMap("input", input));
+        float[] scores = ((float[][]) result.get(0).getValue())[0];
+        float[] probs = softmax(scores);
+        int idx = argmax(probs);
+
+        Prediction p = new Prediction();
+        p.label = labels[idx];
+        p.confidence = probs[idx];
+        p.topLogit = scores[idx];
+        p.index = idx;
+        p.logits = scores;
+        p.probs = probs;
+        p.modelName = modelPath;
+
+        result.close();
+        session.close();
+        return p;
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
 
-    /** Convert a 224×224 Bitmap to a CHW float32 array normalized with ImageNet stats */
-    private float[] bitmapToTensor(Bitmap bitmap) {
-        int[] pixels = new int[INPUT_SIZE * INPUT_SIZE];
-        bitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE);
-
+    /** Convert a 224×224 pixel array to a CHW float32 array normalized with ImageNet stats */
+    private float[] bitmapToTensor(int[] pixels) {
         float[] data = new float[3 * INPUT_SIZE * INPUT_SIZE];
         int pixelCount = INPUT_SIZE * INPUT_SIZE;
 
@@ -275,4 +249,3 @@ public class OnnxPlugin extends Plugin {
         return new float[]{mean, stdDev};
     }
 }
-

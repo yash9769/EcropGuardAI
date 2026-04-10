@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.ecropguard.app',
-  appName: 'eCropGuard',
+  appId: 'com.agrisense.app',
+  appName: 'AgriSense',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
