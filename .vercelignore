@@ -1,0 +1,8 @@
+android
+models_raw
+.venv
+artifacts
+node_modules
+dist
+*.py
+requirements.txt
