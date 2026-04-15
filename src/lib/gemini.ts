@@ -54,7 +54,7 @@ export async function analyzeCropImage(
 
   const pickBest = (res1: DiagnosisResult, res2: DiagnosisResult) => {
     const isNoCrop1 = res1.diseaseName === 'No Crop Detected' || res1.cropType === 'Unknown';
-    const isNoCrop2 = res2.diseaseName === 'No Crop Detected' || res1.cropType === 'Unknown';
+    const isNoCrop2 = res2.diseaseName === 'No Crop Detected' || res2.cropType === 'Unknown';
     
     // If one found a crop and the other didn't, pick the valid one
     if (!isNoCrop1 && isNoCrop2) return res1;

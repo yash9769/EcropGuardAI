@@ -138,7 +138,7 @@ export default function ProfilePage({ profile, isGuest, onUpdate, onSignOut, isD
       {/* Header */}
       <div className="animate-fade-up mb-6 flex justify-between items-center">
         <h1 className="font-display font-bold text-2xl mb-1" style={{ color: 'var(--text)' }}>
-          {t('profile_title')}
+          {t('profile')}
         </h1>
         <button 
           onClick={toggleTheme}

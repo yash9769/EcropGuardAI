@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CloudRain, Sun, Cloud, Wind, Droplets, MapPin, Loader2, Navigation } from 'lucide-react';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
@@ -23,6 +24,7 @@ interface WeatherData {
 }
 
 export default function WeatherWidget() {
+  const { t } = useTranslation();
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function WeatherWidget() {
     // Web Fallback
     if (!Capacitor.isNativePlatform()) {
       if (!('geolocation' in navigator)) {
-        setError('Geolocation not supported');
+        setError(t('geolocation_not_supported'));
         setLoading(false);
         return;
       }
@@ -82,12 +84,12 @@ export default function WeatherWidget() {
         setPermissionGranted(true);
         fetchWeatherWithLocation();
       } else {
-        setError('Location permission denied');
+        setError(t('location_denied'));
         setLoading(false);
       }
     } catch (e) {
       console.error('Permission request failed', e);
-      setError('Could not request permission');
+      setError(t('permission_failed'));
       setLoading(false);
     }
   }
@@ -115,7 +117,7 @@ export default function WeatherWidget() {
       setWeather(data);
     } catch (err) {
       console.error('Weather error:', err);
-      setError('Failed to load weather data');
+      setError(t('weather_load_failed'));
     } finally {
       setLoading(false);
     }
@@ -132,15 +134,15 @@ export default function WeatherWidget() {
             <Navigation size={22} />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-bold text-[var(--text)]">Weather Updates</p>
-            <p className="text-[10px] text-[var(--text-muted)]">Enable location to get local crop-weather insights</p>
+            <p className="text-sm font-bold text-[var(--text)]">{t('weather_updates')}</p>
+            <p className="text-[10px] text-[var(--text-muted)]">{t('enable_location_weather')}</p>
           </div>
           <button 
             onClick={requestPermissionAndFetch}
             disabled={loading}
             className="px-4 py-2 rounded-xl bg-green-500 text-white text-xs font-bold press disabled:opacity-50"
           >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : 'Enable'}
+            {loading ? <Loader2 size={14} className="animate-spin" /> : t('enable')}
           </button>
         </div>
         {error && <p className="text-[9px] text-red-400 mt-2 text-center">{error}</p>}
@@ -154,7 +156,7 @@ export default function WeatherWidget() {
       <div className="glass rounded-3xl p-5 flex items-center justify-center animate-pulse min-h-[140px]">
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="animate-spin text-green-500" size={24} />
-          <p className="text-[10px] text-[var(--text-muted)] font-mono animate-pulse">Syncing with satellites...</p>
+          <p className="text-[10px] text-[var(--text-muted)] font-mono animate-pulse">{t('syncing_satellites')}</p>
         </div>
       </div>
     );
@@ -203,14 +205,14 @@ export default function WeatherWidget() {
         <div className="flex items-center gap-2 bg-black/10 rounded-xl p-2.5 border border-white/5">
           <Droplets size={16} className="text-blue-400" />
           <div>
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">Humidity</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">{t('humidity')}</p>
             <p className="text-xs font-semibold text-[var(--text)]">{weather.current.humidity}%</p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-black/10 rounded-xl p-2.5 border border-white/5">
           <Wind size={16} className="text-teal-400" />
           <div>
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">Wind</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">{t('wind')}</p>
             <p className="text-xs font-semibold text-[var(--text)]">{weather.current.wind_kph} km/h</p>
           </div>
         </div>

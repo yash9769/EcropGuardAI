@@ -1,7 +1,7 @@
 {
-  "name": "eCropGuard AI",
-  "description": "AI-powered crop disease identification for farmers",
-  "version": "1.0.0",
-  "author": "eCropGuard Team",
-  "license": "MIT"
+  "name": "AgriSense AI",
+  "description": "Digital Agronomist Assistant for Smart Farming using Explainable AI.",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

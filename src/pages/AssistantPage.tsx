@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Bot, Send, User, ChevronLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
 
 interface Message {
   role: 'user' | 'assistant';
@@ -13,7 +13,7 @@ interface Message {
 export default function AssistantPage() {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hello! I am your AI Agri-Assistant powered by Groq. I use Hybrid Reasoning, Neural Networks, and Probabilistic concepts to answer your agriculture queries. How can I help you today?' }
+    { role: 'assistant', content: t('assistant_greeting') }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,7 +41,7 @@ export default function AssistantPage() {
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
-            { role: 'system', content: 'You are AgriSense, the future of smart farming. You are a highly intelligent agricultural assistant using Neural Networks and Probabilistic Graphical Models to help farmers with crop diseases, fuzzy logic diagnostics, and hybrid reasoning.' },
+            { role: 'system', content: t('system_prompt_agri') },
             ...newMessages
           ]
         })
@@ -53,7 +53,7 @@ export default function AssistantPage() {
       setMessages([...newMessages, { role: 'assistant', content: reply }]);
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages([...newMessages, { role: 'assistant', content: 'Sorry, I encountered an error connecting to the Groq Neural Network.' }]);
+      setMessages([...newMessages, { role: 'assistant', content: t('groq_error') }]);
     } finally {
       setLoading(false);
     }
@@ -67,9 +67,9 @@ export default function AssistantPage() {
           <div className="w-8 h-8 rounded-full flex items-center justify-center glow-green-sm" style={{ background: 'var(--green-soft)' }}>
             <Bot size={18} style={{ color: 'var(--green)' }} />
           </div>
-          AI Chatbot
+          {t('ai_chatbot')}
         </h1>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Powered by Groq ⚡ & Hybrid Reasoning</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t('powered_by_groq')}</p>
       </div>
 
       {/* Messages */}
@@ -88,7 +88,7 @@ export default function AssistantPage() {
         ))}
         {loading && (
           <div className="flex gap-3 mr-auto items-center text-gray-400 p-2">
-            <Bot size={16} className="animate-pulse" /> <span className="text-xs animate-pulse">Thinking probabilistically...</span>
+            <Bot size={16} className="animate-pulse" /> <span className="text-xs animate-pulse">{t('thinking_probabilistically')}</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -102,7 +102,7 @@ export default function AssistantPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Ask about crops, diseases..." 
+            placeholder={t('ask_placeholder')} 
             className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-green-500 text-white placeholder-gray-500"
           />
           <button 

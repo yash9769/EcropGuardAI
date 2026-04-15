@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { analyzeCropImage, type DiagnosisResult } from '../lib/gemini';
-import { fileToBase64, dataUrlToBase64, getSeverityColor } from '../lib/utils';
+import { dataUrlToBase64, getSeverityColor } from '../lib/utils';
 import SeverityBadge from '../components/SeverityBadge';
 import ConfidenceRing from '../components/ConfidenceRing';
 import i18n from '../i18n/i18n';

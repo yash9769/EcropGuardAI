@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.agrisense.app',
+  appId: 'com.ecropguard.app',
   appName: 'AgriSense',
   webDir: 'dist',
   server: {
