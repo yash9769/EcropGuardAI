@@ -73,6 +73,13 @@
   "medium": "Moderate",
   "high": "High",
   "critical": "Critical",
+  "ai_assistant": "AI Assistant",
+  "assistant_welcome": "Hello! I am your AI Agri-Assistant. I can help you with crop health, pest management, and farming best practices in multiple languages.",
+  "you": "You",
+  "agrisense": "AgriSense",
+  "chat_error": "I encountered an error connecting to the AgriSense engine. Please check your connection.",
+  "thinking": "Neural processing...",
+  "ask_placeholder": "How can I protect my wheat from rust?",
   "tips": {
     "1": "Water crops early in the morning to reduce fungal diseases.",
     "2": "Rotate crops every season to prevent soil-borne diseases.",
