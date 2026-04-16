@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bot, Send, User, Copy, Check, Sparkles, Languages } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ragAPI } from '../services/api';
 
 interface LLMResponse {
   model: string;
@@ -84,43 +85,33 @@ export default function AssistantPage() {
     if (!input.trim() || loading) return;
 
     const currentLang = i18n.language.split('-')[0]; // Handle cases like 'en-US'
+    const lang = ['en', 'hi', 'mr'].includes(currentLang) ? currentLang : 'en';
     const userMessage: Message = { role: 'user', content: input };
+    const queryText = input;
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/rag-query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: input,
-          lang: ['en', 'hi', 'mr'].includes(currentLang) ? currentLang : 'en'
-        })
-      });
-
-      if (!response.ok) throw new Error('API Error');
-
-      const data = await response.json();
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
+      const data = await ragAPI.sendMessage(queryText, lang);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
         responses: data.responses,
         rag_used: data.rag_used,
         rag_context_length: data.rag_context_length,
-        raw_context: data.raw_context
+        raw_context: data.raw_context,
       }]);
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: t('chat_error', 'I encountered an error connecting to the AgriSense engine. Please check your connection.') 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: t('chat_error', 'I encountered an error connecting to the AgriSense engine. Please check your connection.'),
       }]);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="flex flex-col h-screen bg-mesh pb-32">

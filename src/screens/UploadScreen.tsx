@@ -53,33 +53,52 @@ export const UploadScreen = ({ setScreen, setSelectedImg, setAnalysisResult }: U
       let diagnosis: any = null;
 
       try {
-        const formData = new FormData();
-        formData.append('image', file);
-        const apiResponse = await uploadAPI.analyzeImage(formData);
-        if (apiResponse && typeof apiResponse === 'object') {
+        // Use our backend's /detect-disease endpoint
+        const apiResponse = await uploadAPI.analyzeImage(file, 'en');
+        if (apiResponse && typeof apiResponse === 'object' && apiResponse.disease_name) {
           diagnosis = apiResponse;
         }
       } catch (apiError) {
+        console.warn('Backend detect-disease failed, falling back to local Gemini:', apiError);
         diagnosis = null;
       }
 
-      if (!diagnosis || !diagnosis.diseaseName) {
-        diagnosis = await analyzeCropImage(preview, file?.type || 'image/jpeg');
+      // Fallback to local Gemini if backend is unavailable
+      if (!diagnosis) {
+        const geminiResult = await analyzeCropImage(preview, file?.type || 'image/jpeg');
+        if (geminiResult) {
+          // Normalise from camelCase Gemini response to our standard shape
+          diagnosis = {
+            disease_name: geminiResult.diseaseName,
+            crop_type: geminiResult.cropType,
+            confidence: geminiResult.confidence,
+            severity: geminiResult.severity,
+            description: geminiResult.description,
+            symptoms: geminiResult.symptoms || [],
+            causes: geminiResult.causes || [],
+            recommendations: geminiResult.recommendations || [],
+            treatment_steps: geminiResult.treatmentSteps || [],
+            prevention_tips: geminiResult.preventionTips || [],
+            is_healthy: geminiResult.isHealthy || false,
+          };
+        }
       }
 
+      if (!diagnosis) throw new Error(t('analyze_failed'));
+
       const mappedResult = {
-        disease: diagnosis.diseaseName,
-        crop: diagnosis.cropType,
+        disease: diagnosis.disease_name,
+        crop: diagnosis.crop_type,
         confidence: diagnosis.confidence,
-        pathogen: diagnosis.diseaseName,
+        pathogen: diagnosis.disease_name,
         risk_level: diagnosis.severity,
         reasoning: [
           diagnosis.description,
           ...(diagnosis.symptoms?.slice(0, 2) || []),
           ...(diagnosis.causes?.slice(0, 1) || []),
         ].filter(Boolean),
-        treatment: diagnosis.treatmentSteps || [],
-        prevention: diagnosis.preventionTips || [],
+        treatment: diagnosis.treatment_steps || [],
+        prevention: diagnosis.prevention_tips || [],
       };
 
       setAnalysisResult(mappedResult);
@@ -90,6 +109,7 @@ export const UploadScreen = ({ setScreen, setSelectedImg, setAnalysisResult }: U
       setLoading(false);
     }
   };
+
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">

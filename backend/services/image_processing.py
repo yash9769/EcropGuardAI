@@ -1,46 +1,49 @@
-import os
+"""Image analysis service using Gemini 2.0 Flash for disease detection."""
+
 import io
 import json
-import base64
+import os
+
 import google.generativeai as genai
 from fastapi import UploadFile
 from PIL import Image
 
-from backend.models.schemas import DetectionResponse
-from backend.utils.logger import logger
+try:
+    from ..models.schemas import DetectionResponse
+    from ..utils.logger import logger
+except ImportError:  # pragma: no cover
+    from models.schemas import DetectionResponse
+    from utils.logger import logger
+
 
 class ImageService:
-    def __init__(self):
-        self._api_key = os.getenv("GEMINI_API_KEY")
+    def __init__(self) -> None:
+        self._api_key = os.getenv("GEMINI_API_KEY", "").strip()
         if self._api_key:
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel('gemini-2.0-flash')
+            self._model = genai.GenerativeModel("gemini-2.0-flash")
         else:
             self._model = None
             logger.warning("GEMINI_API_KEY not found. Disease detection will be unavailable.")
 
     async def process_image(self, file: UploadFile, language: str = "en") -> DetectionResponse:
-        """
-        Analyze the image using Gemini 2.0 Flash and return a structured diagnosis.
-        """
+        """Analyze the image using Gemini 2.0 Flash and return a structured diagnosis."""
         if not self._model:
             raise ValueError("Gemini API is not configured on the server.")
 
         raw_bytes = await file.read()
-        
+
         # Verify it's a valid image
         try:
             Image.open(io.BytesIO(raw_bytes))
         except Exception as exc:
             raise ValueError(f"Invalid image file: {exc}")
 
-        language_map = {
-            "en": "English", "hi": "Hindi", "mr": "Marathi"
-        }
+        language_map = {"en": "English", "hi": "Hindi", "mr": "Marathi"}
         target_lang = language_map.get(language, "English")
 
         prompt = f"""
-        You are an expert agricultural scientist and plant pathologist. 
+        You are an expert agricultural scientist and plant pathologist.
         Analyze this crop/plant image carefully and provide a detailed diagnosis in {target_lang}.
 
         Respond ONLY with a valid JSON object (no markdown, no code fences) in this exact structure:
@@ -68,10 +71,9 @@ class ImageService:
         """
 
         try:
-            # Prepare image for Gemini
             image_data = {
-                'mime_type': file.content_type or 'image/jpeg',
-                'data': raw_bytes
+                "mime_type": file.content_type or "image/jpeg",
+                "data": raw_bytes,
             }
 
             response = await self._model.generate_content_async(
@@ -80,12 +82,10 @@ class ImageService:
 
             text = response.text.replace("```json", "").replace("```", "").strip()
             data = json.loads(text)
-
             return DetectionResponse(**data)
 
         except Exception as exc:
             logger.error(f"Gemini processing error: {exc}")
-            # Fallback if AI fails partially or returns bad JSON
             return DetectionResponse(
                 disease_name="Analysis Error",
                 crop_type="Unknown",
@@ -97,8 +97,9 @@ class ImageService:
                 recommendations=["Please try again later."],
                 treatment_steps=[],
                 prevention_tips=[],
-                is_healthy=False
+                is_healthy=False,
             )
+
 
 # Module-level singleton
 image_service = ImageService()
