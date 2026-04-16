@@ -7,20 +7,20 @@ import hi from './locales/hi.json';
 import mr from './locales/mr.json';
 
 i18n
-  .use(LanguageDetector)
   .use(initReactI18next)
+  .use(LanguageDetector)
   .init({
     resources: {
       en: { translation: en },
       hi: { translation: hi },
       mr: { translation: mr },
     },
+    lng: 'en',
     fallbackLng: 'en',
-    interpolation: { escapeValue: false },
-    detection: {
-      order: ['localStorage', 'navigator'],
-      caches: ['localStorage'],
+    interpolation: {
+      escapeValue: false,
     },
   });
 
 export default i18n;
+

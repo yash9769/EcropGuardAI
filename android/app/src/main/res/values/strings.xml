@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">AgriSense</string>
     <string name="title_activity_main">AgriSense</string>
-    <string name="package_name">com.agrisense.app</string>
-    <string name="custom_url_scheme">com.agrisense.app</string>
+    <string name="package_name">com.ecropguard.app</string>
+    <string name="custom_url_scheme">com.ecropguard.app</string>
 </resources>
