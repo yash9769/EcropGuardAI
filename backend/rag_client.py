@@ -1,7 +1,6 @@
 """RAG client using local vector search with Supabase fallback."""
 
-from __future__ import annotations
-
+from typing import Optional, Any
 import asyncio
 from pathlib import Path
 
@@ -20,12 +19,12 @@ logger = get_logger("backend.rag_client")
 
 
 class RAGClient:
-    async def fetch_context(self, query: str, lang: str) -> str:
+    async def fetch_context(self, query: str, lang: str, location: Optional[str] = None) -> str:
         if not query.strip():
             raise ValueError("Query cannot be empty.")
         
         # Use the RAG engine to search for relevant context
-        context = await asyncio.to_thread(rag_engine.search, query, 3)
+        context = await asyncio.to_thread(rag_engine.search, query, 3, location=location)
         
         if context.strip():
             logger.info("RAG context retrieved (%d chars)", len(context))

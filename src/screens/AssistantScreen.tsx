@@ -1,272 +1,336 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SmartToy, Help, WbSunny, WaterDrop, AddCircle, ImageIcon, Send, PottedPlant, Science } from '../components/Icons';
+import { SmartToy, Send, ImageIcon, Science, PottedPlant, WbSunny } from '../components/Icons';
 import { TopBar } from '../components/TopBar';
+import { AgriResponseCard } from '../components/AgriResponseCard';
 import { type Screen } from '../components/Sidebar';
-import { chatAPI } from '../services/api';
+import { ragAPI, ChatResponse } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-export const AssistantScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) => {
-  const { t } = useTranslation();
-  const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<any[]>([
-    {
-      role: 'assistant',
-      text: t('assistant_welcome'),
-      time: '09:14 AM'
-    }
-  ]);
-  const [isIrrigating, setIsIrrigating] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showNotification, setShowNotification] = useState<string | null>(null);
+// --- Language label map ---
+const LANG_LABELS: Record<string, string> = { en: 'English', hi: 'हिंदी', mr: 'मराठी' };
 
-  const generateResponses = (query: string) => {
-    const condition = query.toLowerCase().includes('blight')
-      ? t('leaf_blight_risk')
-      : query.toLowerCase().includes('rust')
-      ? t('rust_risk')
-      : query.toLowerCase().includes('yellow')
-      ? t('nutrient_deficiency')
-      : t('crop_health_issue');
+// --- Quick suggestion chips ---
+const SUGGESTIONS = [
+  { emoji: '🍇', text: 'Bhuri in grapes' },
+  { emoji: '🍅', text: 'Tomato leaf spots' },
+  { emoji: '🌾', text: 'Rice pest control' },
+  { emoji: '🧅', text: 'Onion downy mildew' },
+  { emoji: '🌽', text: 'Corn fungal disease' },
+];
 
-    return [
-      {
-        model: 'ResNet50',
-        title: t('resnet_model'),
-        summary: t('resnet_summary', { condition }),
-        confidence: 84,
-        badge: t('local_model'),
-      },
-      {
-        model: 'Blackgram',
-        title: t('blackgram_model'),
-        summary: t('blackgram_summary', { condition }),
-        confidence: 79,
-        badge: t('regional_model'),
-      },
-      {
-        model: 'Gemini',
-        title: t('gemini_model'),
-        summary: t('gemini_summary', { condition }),
-        confidence: 82,
-        badge: t('cloud_ai'),
-      },
-    ];
+interface Message {
+  id: number;
+  role: 'user' | 'assistant';
+  text: string;
+  time: string;
+  // Structured data for assistant messages
+  structured?: {
+    best_answer: string;
+    confidence: number;
+    mode: 'rag' | 'fallback';
+    answers?: { llama?: string; mixtral?: string };
+    sources?: any[];
+    detectedIntent?: string;
   };
+}
 
-  const handleSend = async () => {
-    if (!inputText.trim() || loading) return;
-    const userMsg = { role: 'user', text: inputText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+// Simple intent detector
+function detectIntent(query: string): string {
+  const q = query.toLowerCase();
+  if (q.includes('grape') || q.includes('द्राक्ष')) return 'Disease → Grapes';
+  if (q.includes('tomato') || q.includes('टमाटर')) return 'Disease → Tomato';
+  if (q.includes('rice') || q.includes('wheat') || q.includes('धान')) return 'Pest → Cereal crop';
+  if (q.includes('soil') || q.includes('मिट्टी')) return 'Soil health';
+  if (q.includes('fertilizer') || q.includes('खाद')) return 'Fertilizer advice';
+  if (q.includes('pest') || q.includes('insect')) return 'Pest control';
+  if (/disease|rog|mildew|blight|rust|spot/i.test(q)) return 'Disease query';
+  return '';
+}
+
+interface AssistantScreenProps {
+  setScreen: (s: Screen) => void;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  selectedModel: string;
+  setSelectedModel: (m: string) => void;
+}
+
+let msgId = 0;
+
+export const AssistantScreen = ({
+  setScreen, messages, setMessages, selectedModel, setSelectedModel
+}: AssistantScreenProps) => {
+  const { t, i18n } = useTranslation();
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [retryPayload, setRetryPayload] = useState<{ query: string; lang: string } | null>(null);
+  const [userLocation, setUserLocation] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const lang = i18n.language?.split('-')[0] || 'en';
+  const langLabel = LANG_LABELS[lang] || 'English';
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([{
+        id: ++msgId,
+        role: 'assistant',
+        text: `🌱 Namaste! I'm your AI Agronomist. Ask me about diseases, pests, soil, or fertilizers. I speak **${langLabel}**.`,
+        time: now(),
+      }]);
+    }
+  }, []);
+
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(pos => {
+      setUserLocation(`${pos.coords.latitude.toFixed(2)},${pos.coords.longitude.toFixed(2)}`);
+    });
+  }, []);
+
+  function now() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const handleSend = async (overrideText?: string) => {
+    const query = (overrideText ?? inputText).trim();
+    if (!query || loading) return;
+
+    const detectedIntent = detectIntent(query);
+    const userMsg: Message = { id: ++msgId, role: 'user', text: query, time: now() };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setLoading(true);
+    setRetryPayload(null);
 
     try {
-      const fallbackCards = generateResponses(inputText);
-      const response = await chatAPI.sendMessage(inputText);
-      let cards = fallbackCards;
-      let assistantText = t('assistant_response_card_intro');
+      // Language mapping: send full language name to backend
+      const langMap: Record<string, string> = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
+      const displayLang = langMap[lang] || 'English';
 
-      if (response?.cards?.length) {
-        cards = response.cards;
-      } else if (response?.modelResponses?.length) {
-        cards = response.modelResponses;
-      } else if (typeof response?.message === 'string') {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          text: response.message,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }]);
-        return;
-      }
+      const response: ChatResponse = await ragAPI.sendMessage(query, displayLang, userLocation || undefined);
 
-      setMessages(prev => [...prev, {
+      const assistantMsg: Message = {
+        id: ++msgId,
         role: 'assistant',
-        text: assistantText,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        cards,
-      }]);
+        text: response.best_answer,
+        time: now(),
+        structured: {
+          best_answer: response.best_answer,
+          confidence: response.confidence,
+          mode: (response as any).mode || (response.confidence >= 0.8 ? 'rag' : 'fallback'),
+          answers: {
+            llama: response.answers?.llama,
+            mixtral: response.answers?.mixtral,
+          },
+          sources: response.sources || [],
+          detectedIntent: detectedIntent || undefined,
+        },
+      };
+      setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
-      const cards = generateResponses(inputText);
+      console.error('API Error:', err);
+      setRetryPayload({ query, lang });
       setMessages(prev => [...prev, {
+        id: ++msgId,
         role: 'assistant',
-        text: t('assistant_response_card_intro'),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        cards,
-      }] );
+        text: '⚠️ Connection issue. Tap **Retry** to try again.',
+        time: now(),
+        structured: {
+          best_answer: '⚠️ Connection issue. Tap Retry to try again.',
+          confidence: 0,
+          mode: 'fallback',
+        },
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const triggerAction = (action: string) => {
-    if (action === 'Activate Irrigation') {
-      setIsIrrigating(true);
-      setShowNotification("Irrigation sequence activated for Sector B-12");
-      setTimeout(() => setShowNotification(null), 3000);
-    } else if (action === 'Compare with Sector A') {
-      setScreen('analysis');
-    } else if (action === 'Schedule Manual Check') {
-      setShowNotification("Manual inspection scheduled for 2:00 PM today");
-      setTimeout(() => setShowNotification(null), 3000);
+  const handleRetry = () => {
+    if (retryPayload) {
+      handleSend(retryPayload.query);
     }
   };
+
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <TopBar title={t('assistant_session')} activeScreen="assistant" setScreen={setScreen} />
-      
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8 max-w-4xl mx-auto w-full scrollbar-hide">
-        {messages.map((m, i) => (
-          <motion.div 
-            key={i}
-            layout
-            initial={{ opacity: 0, x: m.role === 'assistant' ? -20 : 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            whileHover={m.role === 'assistant' ? { scale: 1.005 } : undefined}
-            transition={{ duration: 0.25 }}
-            className={cn(
-              "flex items-start gap-4 max-w-[85%]",
-              m.role === 'user' && "self-end flex-row-reverse"
-            )}
-          >
-            {m.role === 'assistant' ? (
-              <div className="w-10 h-10 shrink-0 rounded-full signature-gradient flex items-center justify-center shadow-sm">
-                <SmartToy className="text-white w-6 h-6" fill />
-              </div>
-            ) : (
-              <div className="w-10 h-10 shrink-0 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
-                <img className="w-full h-full object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100" alt="User" />
-              </div>
-            )}
-            <div className={cn(
-              "flex flex-col gap-2",
-              m.role === 'user' && "items-end"
-            )}>
+    <div className="flex-1 flex flex-col h-full bg-surface overflow-hidden">
+      <TopBar title="Ask AI Agronomist" activeScreen="assistant" setScreen={setScreen} />
+
+      {/* Language indicator bar */}
+      <div className="bg-surface-container-low/80 backdrop-blur-md border-b border-emerald-900/5 px-6 py-2 flex items-center justify-between z-10">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Responding in</span>
+          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+            🌐 {langLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 bg-surface-container-lowest p-0.5 rounded-full border border-emerald-900/5">
+          {(['en', 'hi', 'mr'] as const).map(l => (
+            <button
+              key={l}
+              onClick={() => i18n.changeLanguage(l)}
+              className={cn(
+                'px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all',
+                lang === l ? 'bg-primary text-white shadow' : 'text-on-surface-variant hover:bg-emerald-50'
+              )}
+            >
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 flex flex-col gap-5 scroll-smooth">
+        <div className="max-w-3xl mx-auto w-full flex flex-col gap-5">
+          {messages.map((m) => (
+            <motion.div
+              key={m.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn('flex items-end gap-3', m.role === 'user' ? 'self-end flex-row-reverse' : 'self-start')}
+            >
+              {/* Avatar */}
               <div className={cn(
-                "p-5 rounded-2xl shadow-sm bg-surface-container-lowest leading-relaxed",
-                m.role === 'assistant' ? "rounded-tl-none border border-emerald-900/5" : "bg-primary text-on-primary rounded-tr-none"
+                'w-8 h-8 rounded-full flex items-center justify-center shadow-sm shrink-0',
+                m.role === 'assistant' ? 'signature-gradient' : 'bg-emerald-100 border border-emerald-200'
               )}>
-                 {m.text}
-                 {m.cards && (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    {m.cards.map((card: any, idx: number) => (
-                      <motion.div key={idx} whileHover={{ y: -4, boxShadow: '0 20px 45px rgba(16, 185, 129, 0.08)' }} transition={{ duration: 0.2 }} className="rounded-3xl border border-emerald-900/5 bg-white p-4 shadow-sm">
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <div>
-                            <p className="text-[11px] uppercase tracking-[0.28em] font-bold text-emerald-600">{card.model}</p>
-                            <h3 className="text-sm font-semibold text-emerald-950">{card.title}</h3>
-                          </div>
-                          <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">{card.badge}</span>
-                        </div>
-                        <p className="text-sm leading-relaxed text-on-surface-variant mb-4">{card.summary}</p>
-                        <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] font-semibold text-emerald-600">
-                          <span>{t('confidence')}</span>
-                          <span>{card.confidence}%</span>
-                        </div>
-                      </motion.div>
-                    ))}
+                {m.role === 'assistant'
+                  ? <SmartToy className="text-white w-4 h-4" fill />
+                  : <span className="text-emerald-700 text-xs font-black">Y</span>
+                }
+              </div>
+
+              {/* Content */}
+              <div className={cn('max-w-[88%] sm:max-w-[78%]', m.role === 'user' && 'items-end flex flex-col')}>
+                {m.role === 'user' ? (
+                  // User message — simple pill
+                  <div className="bg-primary text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm shadow-sm">
+                    {m.text}
+                  </div>
+                ) : m.structured ? (
+                  // Assistant message — full structured card
+                  <AgriResponseCard
+                    best_answer={m.structured.best_answer}
+                    confidence={m.structured.confidence}
+                    mode={m.structured.mode}
+                    answers={m.structured.answers}
+                    sources={m.structured.sources}
+                    detectedIntent={m.structured.detectedIntent}
+                    time={m.time}
+                  />
+                ) : (
+                  // Welcome / simple text message
+                  <div className="bg-white border border-emerald-900/5 px-4 py-3 rounded-2xl rounded-tl-sm text-sm text-on-surface shadow-sm leading-relaxed">
+                    {m.text.replace(/\*\*(.*?)\*\*/g, '$1')}
                   </div>
                 )}
-              </div>
-              <span className="text-[10px] text-on-surface-variant/60 uppercase tracking-widest font-semibold">{m.time}</span>
-            </div>
-          </motion.div>
-        ))}
 
-        {loading && (
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-start gap-4"
-          >
-            <div className="w-10 h-10 shrink-0 rounded-full signature-gradient flex items-center justify-center shadow-sm animate-pulse">
-              <SmartToy className="text-white w-6 h-6" fill />
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="bg-surface-container-lowest p-5 rounded-2xl rounded-tl-none border border-emerald-900/5 shadow-sm text-on-surface-variant flex gap-1">
-                <span className="w-1.5 h-1.5 bg-emerald-800 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                <span className="w-1.5 h-1.5 bg-emerald-800 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-                <span className="w-1.5 h-1.5 bg-emerald-800 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
+                {/* Retry button */}
+                {retryPayload && m.role === 'assistant' && m.id === messages[messages.length - 1]?.id && (
+                  <button
+                    onClick={handleRetry}
+                    className="mt-2 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors"
+                  >
+                    🔄 Retry
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          ))}
+
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="flex items-end gap-3 self-start">
+              <div className="w-8 h-8 rounded-full signature-gradient flex items-center justify-center shadow-sm animate-pulse shrink-0">
+                <SmartToy className="text-white w-4 h-4" fill />
+              </div>
+              <div className="bg-white border border-emerald-900/5 rounded-2xl rounded-tl-sm p-4 shadow-sm flex flex-col gap-2 w-64">
+                <div className="h-2.5 bg-emerald-100 rounded-full animate-pulse w-3/4" />
+                <div className="h-2.5 bg-emerald-50 rounded-full animate-pulse w-full" />
+                <div className="h-2.5 bg-emerald-50 rounded-full animate-pulse w-5/6" />
+                <p className="text-[10px] text-on-surface-variant/60 mt-1 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.15s]" />
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.3s]" />
+                  <span className="ml-1">Analysing...</span>
+                </p>
               </div>
             </div>
-          </motion.div>
-        )}
-      </motion.div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
 
-      {/* Input Section */}
-      <div className="p-6 bg-surface-container-low/40 backdrop-blur-md border-t border-emerald-900/5">
-        <div className="max-w-4xl mx-auto flex flex-col gap-4">
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            <motion.button 
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.98 }}
+      {/* Input area */}
+      <div className="p-4 sm:p-5 bg-surface-container-low/40 border-t border-emerald-900/5">
+        <div className="max-w-3xl mx-auto flex flex-col gap-3">
+
+          {/* Suggestion chips */}
+          {messages.length <= 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide no-scrollbar">
+              {SUGGESTIONS.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(s.text)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-200 rounded-full text-[11px] font-bold text-emerald-900 whitespace-nowrap hover:bg-emerald-50 hover:shadow-sm transition-all shadow-xs"
+                >
+                  {s.emoji} {s.text}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Quick nav chips */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide no-scrollbar">
+            <button
               onClick={() => setScreen('crop-health')}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-emerald-900/5 rounded-full text-xs font-semibold text-emerald-900 whitespace-nowrap hover:shadow-sm transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-900/5 rounded-full text-[11px] font-bold text-on-surface-variant whitespace-nowrap hover:bg-surface-container transition-colors"
             >
-              <PottedPlant className="w-4 h-4" />
-              {t('check_crop_disease')}
-            </motion.button>
-            <button 
-              onClick={() => setScreen('weather')}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-emerald-900/5 rounded-full text-xs font-semibold text-emerald-900 whitespace-nowrap hover:shadow-sm transition-all"
-            >
-              <WbSunny className="w-4 h-4" />
-              {t('get_weather_info')}
+              <PottedPlant size={12} /> Scan Crop
             </button>
-            <button 
-              onClick={() => setScreen('analysis')}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-emerald-900/5 rounded-full text-xs font-semibold text-emerald-900 whitespace-nowrap hover:shadow-sm transition-all"
+            <button
+              onClick={() => setScreen('weather')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-900/5 rounded-full text-[11px] font-bold text-on-surface-variant whitespace-nowrap hover:bg-surface-container transition-colors"
             >
-              <Science className="w-4 h-4" />
-              {t('soil_health_tips')}
+              <WbSunny size={12} /> Weather
+            </button>
+            <button
+              onClick={() => setScreen('soil-metrics')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-900/5 rounded-full text-[11px] font-bold text-on-surface-variant whitespace-nowrap hover:bg-surface-container transition-colors"
+            >
+              <Science size={12} /> Soil Analysis
             </button>
           </div>
 
-          <motion.div className="relative group" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <div className="absolute inset-0 bg-emerald-900/5 rounded-2xl blur-lg transition-opacity opacity-0 group-focus-within:opacity-100"></div>
-            <motion.div whileHover={{ scale: 1.005 }} className="relative flex items-center bg-surface-container-lowest border border-emerald-900/10 p-2 pl-4 rounded-2xl shadow-sm">
-              <button className="p-2 text-on-surface-variant hover:text-emerald-900 transition-colors">
-                <AddCircle className="w-6 h-6" />
-              </button>
-              <button className="p-2 text-on-surface-variant hover:text-emerald-900 transition-colors mr-2">
-                <ImageIcon className="w-6 h-6" />
-              </button>
-              <input 
-                type="text" 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={t('ask_about_crop_diseases')}
-                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder:text-on-surface-variant/50 py-3"
-              />
-              <motion.button 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleSend}
-                className="ml-2 w-12 h-12 flex items-center justify-center signature-gradient text-white rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all"
-              >
-                <Send className="w-6 h-6" />
-              </motion.button>
-            </motion.div>
-          </motion.div>
-          <p className="text-[10px] text-center text-on-surface-variant/40 font-medium">{t('translation_warning')}</p>
+          {/* Text input */}
+          <div className="bg-white border border-emerald-900/10 p-1.5 pl-4 rounded-2xl shadow-premium focus-within:border-primary/40 transition-all flex items-center gap-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+              placeholder="Ask about disease, pests, fertilizer..."
+              className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-3 px-2 outline-none text-on-surface placeholder:text-on-surface-variant/40"
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={!inputText.trim() || loading}
+              className="w-11 h-11 flex items-center justify-center signature-gradient text-white rounded-xl shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 active:scale-95 transition-all disabled:opacity-40"
+            >
+              <Send size={20} />
+            </button>
+          </div>
         </div>
       </div>
-      {/* Simple Toast Notification */}
-      <AnimatePresence>
-        {showNotification && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-emerald-900 text-white px-6 py-3 rounded-full shadow-2xl font-bold text-sm z-[100] flex items-center gap-3 border border-emerald-400/20"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            {showNotification}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

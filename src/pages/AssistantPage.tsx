@@ -12,10 +12,15 @@ interface LLMResponse {
 interface Message {
   role: 'user' | 'assistant';
   content?: string;
-  responses?: LLMResponse[];
-  rag_used?: boolean;
-  rag_context_length?: number;
-  raw_context?: string;
+  best_answer?: string;
+  answers?: {
+    llama: string;
+    mixtral: string;
+    qwen: string;
+  };
+  confidence?: number;
+  agreement?: string;
+  sources?: any[];
 }
 
 const MODEL_COLORS: Record<string, string> = {
@@ -36,9 +41,25 @@ export default function AssistantPage() {
   const [copiedIndex, setCopiedIndex] = useState<{msg: number, resp: number} | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [location, setLocation] = useState<string | null>(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const { getWeather } = await import('../lib/weather');
+          const data = await getWeather(`${pos.coords.latitude},${pos.coords.longitude}`);
+          if (data.city) setLocation(data.city);
+        } catch (e) {
+          setLocation(`${pos.coords.latitude.toFixed(2)},${pos.coords.longitude.toFixed(2)}`);
+        }
+      });
+    }
+  }, []);
 
   const renderFormattedText = (text: string) => {
     // Basic markdown-like formatting
@@ -84,7 +105,7 @@ export default function AssistantPage() {
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const currentLang = i18n.language.split('-')[0]; // Handle cases like 'en-US'
+    const currentLang = i18n.language.split('-')[0];
     const lang = ['en', 'hi', 'mr'].includes(currentLang) ? currentLang : 'en';
     const userMessage: Message = { role: 'user', content: input };
     const queryText = input;
@@ -93,13 +114,14 @@ export default function AssistantPage() {
     setLoading(true);
 
     try {
-      const data = await ragAPI.sendMessage(queryText, lang);
+      const data = await ragAPI.sendMessage(queryText, lang, location || undefined);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        responses: data.responses,
-        rag_used: data.rag_used,
-        rag_context_length: data.rag_context_length,
-        raw_context: data.raw_context,
+        best_answer: data.best_answer,
+        answers: data.answers,
+        confidence: data.confidence,
+        agreement: data.agreement,
+        sources: data.sources,
       }]);
     } catch (error) {
       console.error('Chat error:', error);
@@ -172,50 +194,67 @@ export default function AssistantPage() {
               </div>
             ) : (
               <div className="space-y-4 w-full max-w-[95%]">
-                <div className="grid grid-cols-1 gap-4">
-                  {msg.responses?.map((r, i) => (
-                    <div key={i} className="group relative glass-bright rounded-2xl p-5 border-white/10 shadow-2xl animate-fade-up overflow-hidden" 
-                         style={{ animationDelay: `${i * 150}ms` }}>
-                      {/* Background Accent */}
-                      <div className={cn('absolute top-0 right-0 w-32 h-32 -mr-16 -mt-16 blur-3xl opacity-10 transition-opacity group-hover:opacity-20 bg-gradient-to-br', 
-                        (MODEL_COLORS[r.model] || MODEL_COLORS.default).split(' ')[0])} />
-
-                      <div className="flex items-center justify-between mb-4">
-                        <div className={cn('flex items-center gap-2 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r', 
-                          MODEL_COLORS[r.model] || MODEL_COLORS.default)}>
-                          <Sparkles size={10} />
-                          {r.model}
-                        </div>
-                        
-                        <button 
-                          onClick={() => copyToClipboard(r.text, index, i)}
-                          className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white/40 hover:text-white/80 transition-all press"
-                        >
-                          {copiedIndex?.msg === index && copiedIndex?.resp === i ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
-                        </button>
-                      </div>
-
-                      <div className="text-sm leading-relaxed text-gray-200 relative z-10">
-                        {renderFormattedText(r.text)}
-                      </div>
-                    </div>
-                  ))}
+                {/* Best Answer Bubble */}
+                <div className="glass p-5 rounded-2xl rounded-tl-none border-white/10 shadow-xl text-gray-200 animate-scale-in">
+                   <div className="flex items-center gap-2 mb-3">
+                     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 shadow-sm">
+                       <Check size={10} className="text-green-400" />
+                       <span className="text-[10px] font-bold uppercase tracking-wider text-green-400">Groq Consensus Engine</span>
+                     </div>
+                     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 shadow-sm">
+                       <Sparkles size={10} className="text-blue-400" />
+                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Consensus: {msg.agreement}</span>
+                     </div>
+                   </div>
+                   <div className="text-sm leading-relaxed">
+                    {renderFormattedText(msg.best_answer || '')}
+                   </div>
                 </div>
 
-                {msg.raw_context && msg.rag_used && (
+                {/* Model Variants */}
+                <details className="group">
+                  <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/60 transition-colors py-2 px-1 select-none flex items-center gap-2">
+                    <Bot size={12} />
+                    View Model Perspectives ({Object.keys(msg.answers || {}).length})
+                  </summary>
+                  <div className="grid grid-cols-1 gap-4 mt-4 animate-fade-in">
+                    {msg.answers && Object.entries(msg.answers).map(([node, text], i) => (
+                      <div key={node} className="glass-bright rounded-2xl p-5 border-white/5 shadow-lg relative overflow-hidden group">
+                         <div className="flex items-center justify-between mb-4">
+                            <div className={cn('flex items-center gap-2 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r', 
+                              MODEL_COLORS[node] || MODEL_COLORS.default)}>
+                               <Bot size={10} />
+                               {node} Model
+                            </div>
+                            <button 
+                              onClick={() => copyToClipboard(text, index, i)}
+                              className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white/40 hover:text-white/80 transition-all press"
+                            >
+                              {copiedIndex?.msg === index && copiedIndex?.resp === i ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                            </button>
+                         </div>
+                         <div className="text-xs leading-relaxed text-gray-300 opacity-80 group-hover:opacity-100 transition-opacity">
+                            {renderFormattedText(text)}
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                {/* Sources */}
+                {msg.sources && msg.sources.length > 0 && (
                   <details className="group w-full p-4 bg-blue-500/5 rounded-2xl border border-blue-500/20 hover:border-blue-500/40 transition-all backdrop-blur-sm">
                     <summary className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-blue-300 group-open:text-blue-100 mb-3 select-none">
                       <Sparkles size={16} className="text-blue-400 flex-shrink-0" />
-                      📚 Sources ({msg.raw_context.split('\n').filter(l => l.trim()).length} documents)
+                      📚 Research Sources ({msg.sources.length} documents)
                       <span className="ml-auto text-xs opacity-70">(click to expand)</span>
                     </summary>
-                    <div className="ml-6 text-xs space-y-1.5 text-gray-300 max-h-40 overflow-y-auto pr-2">
-                      {msg.raw_context.split('\n').map((line, i) => (
-                        line.trim() && (
-                          <div key={i} className="pl-3 py-1.5 rounded border-l-4 border-blue-500/30 bg-white/2 hover:bg-white/5 transition-colors">
-                            {line}
-                          </div>
-                        )
+                    <div className="ml-6 text-[11px] space-y-2.5 text-gray-300 max-h-56 overflow-y-auto pr-2">
+                      {msg.sources.map((src, i) => (
+                        <div key={i} className="pl-3 py-2 rounded border-l-4 border-blue-500/30 bg-white/2 hover:bg-white/5 transition-colors">
+                          <div className="font-bold text-blue-200 mb-1">{src.source} <span className="text-[9px] opacity-60 ml-2">Qual: {src.quality}</span></div>
+                          <div className="italic opacity-80 line-clamp-2 leading-relaxed text-gray-400">"{src.preview}..."</div>
+                        </div>
                       ))}
                     </div>
                   </details>

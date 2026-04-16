@@ -1,8 +1,9 @@
-"""Image analysis service using Gemini 2.0 Flash for disease detection."""
+"""Disease Detection Service using Gemini Vision 2.0 Flash."""
 
 import io
 import json
 import os
+from typing import Dict, Any, List
 
 import google.generativeai as genai
 from fastapi import UploadFile
@@ -21,53 +22,53 @@ class ImageService:
         self._api_key = os.getenv("GEMINI_API_KEY", "").strip()
         if self._api_key:
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel("gemini-2.0-flash")
+            self._model = genai.GenerativeModel("gemini-1.5-flash") # Use 1.5-flash or 2.0-flash
+            logger.info("Gemini Vision Service initialized.")
         else:
             self._model = None
-            logger.warning("GEMINI_API_KEY not found. Disease detection will be unavailable.")
+            logger.warning("GEMINI_API_KEY is missing. Disease detection disabled.")
 
     async def process_image(self, file: UploadFile, language: str = "en") -> DetectionResponse:
-        """Analyze the image using Gemini 2.0 Flash and return a structured diagnosis."""
+        """Analyze a crop image and return a structured agricultural diagnosis."""
         if not self._model:
-            raise ValueError("Gemini API is not configured on the server.")
+            raise ValueError("Cloud AI visual core not configured. Set GEMINI_API_KEY.")
 
         raw_bytes = await file.read()
-
-        # Verify it's a valid image
+        
+        # Local validation
         try:
-            Image.open(io.BytesIO(raw_bytes))
+            img = Image.open(io.BytesIO(raw_bytes))
+            if img.width < 100 or img.height < 100:
+                raise ValueError("Image resolution is too low for accurate analysis.")
         except Exception as exc:
-            raise ValueError(f"Invalid image file: {exc}")
+            raise ValueError(f"Invalid image content: {exc}")
 
         language_map = {"en": "English", "hi": "Hindi", "mr": "Marathi"}
         target_lang = language_map.get(language, "English")
 
         prompt = f"""
-        You are an expert agricultural scientist and plant pathologist.
-        Analyze this crop/plant image carefully and provide a detailed diagnosis in {target_lang}.
-
-        Respond ONLY with a valid JSON object (no markdown, no code fences) in this exact structure:
+        You are a PhD plant pathologist and field agronomist.
+        Analyze this agricultural image meticulously. Identify the crop type and any diseases or deficiencies.
+        
+        Provide advice for small-scale farmers in {target_lang}.
+        If the crop is healthy, provide maintenance tips. If diseased, provide remedial actions.
+        
+        Respond ONLY with a JSON object (no talk, no markdown fences) with this structure:
         {{
-          "disease_name": "Name of disease or 'Healthy Crop' if no disease",
-          "crop_type": "Type of crop/plant detected",
-          "confidence": 85,
+          "disease_name": "string",
+          "crop_type": "string",
+          "confidence": number (0-100),
           "severity": "low|medium|high|critical",
-          "description": "Brief description of the condition in 1-2 sentences",
-          "symptoms": ["symptom1", "symptom2", "symptom3"],
-          "causes": ["cause1", "cause2"],
-          "recommendations": ["action1", "action2", "action3"],
-          "treatment_steps": ["step1", "step2", "step3", "step4"],
-          "prevention_tips": ["tip1", "tip2", "tip3"],
-          "is_healthy": false,
-          "impact": "predicted yield impact description",
-          "organic_controls": ["organic_action1", "organic_action2"]
+          "description": "string (2 sentences)",
+          "symptoms": ["string"],
+          "causes": ["string"],
+          "recommendations": ["string"],
+          "treatment_steps": ["step-by-step guidance"],
+          "prevention_tips": ["string"],
+          "is_healthy": boolean,
+          "impact": "predicted yield impact",
+          "organic_controls": ["non-chemical alternatives"]
         }}
-
-        Rules:
-        - confidence is 0-100 integer
-        - severity must be exactly one of: low, medium, high, critical
-        - If crop is healthy, set is_healthy: true, severity: "low", disease_name: "Healthy Crop"
-        - Provide practical, actionable advice for small-scale farmers in {target_lang}.
         """
 
         try:
@@ -76,30 +77,35 @@ class ImageService:
                 "data": raw_bytes,
             }
 
+            # Async AI call
             response = await self._model.generate_content_async(
                 contents=[prompt, image_data]
             )
+            
+            # Sanitise JSON response
+            raw_text = response.text.strip()
+            # Clean possible markdown block markers
+            clean_json = re.sub(r"```json|```", "", raw_text).strip()
+            
+            data = json.loads(clean_json)
+            
+            # Fill missing required fields if any (fallback)
+            for field in ["symptoms", "causes", "recommendations", "treatment_steps", "prevention_tips"]:
+                if field not in data:
+                    data[field] = []
 
-            text = response.text.replace("```json", "").replace("```", "").strip()
-            data = json.loads(text)
             return DetectionResponse(**data)
 
+        except json.JSONDecodeError:
+            logger.error("AI returned malformed JSON from visual analysis.")
+            raise ValueError("Failure to parse AI visual diagnostic. Please try again.")
         except Exception as exc:
-            logger.error(f"Gemini processing error: {exc}")
-            return DetectionResponse(
-                disease_name="Analysis Error",
-                crop_type="Unknown",
-                confidence=0,
-                severity="low",
-                description="The AI service encountered an error processing your image.",
-                symptoms=[],
-                causes=[],
-                recommendations=["Please try again later."],
-                treatment_steps=[],
-                prevention_tips=[],
-                is_healthy=False,
-            )
+            logger.error("Visual diagnostic service error: %s", exc)
+            raise
 
+
+# Helper needed for the regex cleaning
+import re
 
 # Module-level singleton
 image_service = ImageService()

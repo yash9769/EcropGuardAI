@@ -37,13 +37,13 @@ export const DashboardScreen = ({ setScreen }: { setScreen: (s: Screen) => void 
     }
   }, []);
 
-  const current = weather?.weather?.current || {};
+  const current = weather?.current || {};
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <TopBar title={t('overview')} activeScreen="dashboard" setScreen={setScreen} />
       
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full space-y-8 scrollbar-hide">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full space-y-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-4">
           <div>
             <h1 className="text-4xl font-headline font-extrabold text-primary tracking-tight">{t('farm_overview')}</h1>

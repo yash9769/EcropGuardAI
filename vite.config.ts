@@ -6,15 +6,11 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
-  // Backend URL for the dev proxy (only used in local dev; in production VITE_API_URL is set)
+  // Backend URL for the dev proxy (only used in local dev)
   const backendUrl = env.VITE_API_URL || 'http://localhost:8000';
 
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      // Expose specific env vars that need to be available at build time
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -22,15 +18,33 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        // Proxy backend API calls during development so the browser never sees localhost
-        '/chat': { target: backendUrl, changeOrigin: true },
+        // Core AgriSense AI Proxy
         '/rag-query': { target: backendUrl, changeOrigin: true },
-        '/detect-disease': { target: backendUrl, changeOrigin: true },
+        '/analyze-disease': { target: backendUrl, changeOrigin: true },
+        '/api/soil': { target: backendUrl, changeOrigin: true },
         '/health': { target: backendUrl, changeOrigin: true },
+        '/models': { target: backendUrl, changeOrigin: true },
         '/docs': { target: backendUrl, changeOrigin: true },
+        
+        // External Environmental Feeds
+        '/weather-api': {
+          target: 'https://api.weatherapi.com/v1',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/weather-api/, ''),
+        },
+        '/openweather-api': {
+          target: 'https://api.openweathermap.org/data/2.5',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/openweather-api/, ''),
+        },
       },
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // HMR is disabled in certain environments
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    define: {
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.VITE_WEATHER_API_KEY': JSON.stringify(env.VITE_WEATHER_API_KEY),
+      'process.env.VITE_OPENWEATHER_API_KEY': JSON.stringify(env.VITE_OPENWEATHER_API_KEY),
     },
   };
 });

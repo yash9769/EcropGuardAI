@@ -4,7 +4,9 @@ import { CloudRain, Sun, Cloud, Wind, Droplets, MapPin, Loader2, Navigation } fr
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 
-const WEATHER_API_KEY = '4eb7811e4ca04217b6892318261004';
+import { getWeather } from '../lib/weather';
+
+const WEATHER_API_KEY = import.meta.env.VITE_WEATHER_API_KEY || '4eb7811e4ca04217b6892318261004';
 
 interface WeatherData {
   location: {
@@ -110,11 +112,26 @@ export default function WeatherWidget() {
         longitude = position.coords.longitude;
       }
       
-      const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${latitude},${longitude}`);
+      const query = `${latitude},${longitude}`;
+      const data = await getWeather(query);
       
-      if (!res.ok) throw new Error('Weather fetching failed');
-      const data = await res.json();
-      setWeather(data);
+      // Transform OpenMeteoFormat back to WeatherData format expected by this component
+      setWeather({
+        location: {
+          name: data.city || 'Unknown',
+          region: ''
+        },
+        current: {
+          temp_c: data.weather.current.temperature_2m,
+          condition: {
+            text: 'Cloudy', // Generic fallback as OpenMeteoFormat doesn't store text yet
+            code: 1003
+          },
+          wind_kph: data.weather.current.wind_speed_10m,
+          humidity: data.weather.current.relative_humidity_2m,
+          precip_mm: data.weather.current.precipitation
+        }
+      });
     } catch (err) {
       console.error('Weather error:', err);
       setError(t('weather_load_failed'));

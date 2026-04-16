@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from typing import List
 
 try:
     from .models.schemas import LLMResponse
@@ -27,7 +28,11 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(level)
 
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+    fmt = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    handler.setFormatter(fmt)
     logger.addHandler(handler)
     logger.propagate = False
     return logger
@@ -35,6 +40,10 @@ def get_logger(name: str) -> logging.Logger:
 
 logger = get_logger("backend.app_utils")
 
+
+# ---------------------------------------------------------------------------
+# Response scoring
+# ---------------------------------------------------------------------------
 
 def _length_score(text: str) -> float:
     size = len(text.strip())
@@ -93,7 +102,7 @@ def score_response(text: str) -> float:
     )
 
 
-def pick_best(responses: list[LLMResponse]) -> LLMResponse:
+def pick_best(responses: List[LLMResponse]) -> LLMResponse:
     if not responses:
         raise ValueError("No responses available for ranking.")
 
@@ -104,13 +113,17 @@ def pick_best(responses: list[LLMResponse]) -> LLMResponse:
     )
     winner, score = ranked[0]
     logger.info(
-        "Best response selected: %s (%s) | %s",
+        "Best response: %s (score=%.4f) | all: %s",
         winner.model,
         score,
-        ", ".join(f"{response.model}={value}" for response, value in ranked),
+        ", ".join(f"{r.model}={s:.4f}" for r, s in ranked),
     )
     return winner
 
+
+# ---------------------------------------------------------------------------
+# Translation
+# ---------------------------------------------------------------------------
 
 async def translate_text_if_needed(
     text: str,
@@ -118,6 +131,7 @@ async def translate_text_if_needed(
     groq_client,
     model_id: str = "llama-3.1-8b-instant",
 ) -> str:
+    """Translate text to target_lang if it doesn't already appear to be in that language."""
     if target_lang == "en":
         return text
     if target_lang not in SUPPORTED_LANGUAGES:
@@ -128,25 +142,26 @@ async def translate_text_if_needed(
     target_name = SUPPORTED_LANGUAGES[target_lang]
     prompt = (
         f"Translate the following agriculture guidance into {target_name}. "
-        "Preserve formatting and keep the meaning unchanged. "
-        "Return only the translated text.\n\n"
+        "Preserve all formatting, bullet points, and headings. Keep the meaning unchanged. "
+        "Return ONLY the translated text with no extra commentary.\n\n"
         f"{text}"
     )
     try:
         completion = await groq_client.chat.completions.create(
             model=model_id,
             temperature=0.1,
-            max_tokens=900,
+            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
         translated = completion.choices[0].message.content or text
         return translated.strip()
     except Exception as exc:
-        logger.warning("Translation fallback failed: %s", exc)
+        logger.warning("Translation failed (%s), returning original: %s", target_lang, exc)
         return text
 
 
 def _looks_like_language(text: str, target_lang: str) -> bool:
+    """Heuristic: check if text already contains target-language characters."""
     if target_lang in {"hi", "mr"}:
         return bool(re.search(r"[\u0900-\u097F]", text))
     return True
