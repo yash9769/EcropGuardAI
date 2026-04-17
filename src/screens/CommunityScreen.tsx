@@ -42,6 +42,7 @@ export const CommunityScreen = ({ setScreen }: { setScreen: (s: Screen) => void 
         }
       } catch (err) {
         console.error(err);
+        setCommunities(INITIAL_COMMUNITIES);
       } finally {
         setLoading(false);
       }

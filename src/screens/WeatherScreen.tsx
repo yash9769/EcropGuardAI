@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { TopBar } from '../components/TopBar';
 import { type Screen } from '../components/Sidebar';
-import { WbSunny, Warning, WaterDrop, Bolt, Search } from '../components/Icons';
+import { WbSunny, Warning, WaterDrop, Bolt, Search, Analytics } from '../components/Icons';
 import { getWeather } from '../lib/weather';
 import { cn } from '../lib/utils';
 

@@ -35,6 +35,7 @@ class ChatResponse(BaseModel):
     rag_used: bool = False
     rag_context_length: int = 0
     raw_context: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

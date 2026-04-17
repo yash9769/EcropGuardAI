@@ -1,57 +1,56 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Warning } from './Icons';
 
-interface Props { children: ReactNode; }
-interface State { hasError: boolean; error: Error | null; }
+interface Props {
+  children?: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
 
 export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  public state: State = {
+    hasError: false
+  };
 
-  static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[eCropGuard Error Boundary]', error, info);
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Uncaught error:', error, errorInfo);
   }
 
-  handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
-  render() {
+  public render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
-        <div className="h-screen w-full flex flex-col items-center justify-center bg-surface gap-6 p-8">
-          <div className="w-20 h-20 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center text-4xl">
-            🌿
+        <div className="flex flex-col h-screen w-full items-center justify-center bg-[#f0f4f0] p-6 font-sans">
+          <div className="bg-white border border-red-100 p-8 rounded-[2rem] max-w-lg w-full flex flex-col items-center text-center shadow-xl">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <Warning className="w-10 h-10 text-red-500" />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900 mb-2">Oops! UI Glitch</h1>
+            <p className="text-gray-500 mb-6 font-medium leading-relaxed">Don't worry, the crops are fine but our app hit a snag. Please reload to restore the interface.</p>
+            <div className="bg-gray-50 p-4 rounded-xl w-full overflow-x-auto border border-gray-100 text-left mb-8 shadow-inner">
+              <code className="text-xs font-mono text-red-700/80 whitespace-pre-wrap break-words">{this.state.error?.toString() || 'Unknown Error'}</code>
+            </div>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="bg-emerald-700 text-white px-10 py-4 rounded-2xl font-black tracking-widest uppercase text-xs hover:bg-emerald-800 transition-all shadow-lg active:scale-95"
+            >
+              Reload Platform
+            </button>
           </div>
-          <div className="text-center max-w-sm">
-            <h2 className="text-lg font-black text-red-700 mb-2">Something went wrong</h2>
-            <p className="text-sm text-on-surface-variant mb-1">
-              eCropGuard ran into a problem. Your data is safe.
-            </p>
-            <p className="text-xs text-on-surface-variant/60 font-mono bg-surface-container rounded-lg p-2 mt-2 break-all">
-              {this.state.error?.message || 'Unknown error'}
-            </p>
-          </div>
-          <button
-            onClick={this.handleRetry}
-            className="px-8 py-3 signature-gradient text-white font-black rounded-2xl shadow-lg active:scale-95 transition-transform"
-          >
-            🔄 Try Again
-          </button>
-          <button
-            onClick={() => window.location.reload()}
-            className="text-xs text-on-surface-variant underline"
-          >
-            Reload page
-          </button>
         </div>
       );
     }
+
     return this.props.children;
   }
 }

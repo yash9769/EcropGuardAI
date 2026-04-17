@@ -25,12 +25,13 @@ interface Message {
   role: 'user' | 'assistant';
   text: string;
   time: string;
+  image?: string; // Local preview or remote URL
   // Structured data for assistant messages
   structured?: {
     best_answer: string;
     confidence: number;
     mode: 'rag' | 'fallback';
-    answers?: { llama?: string; mixtral?: string };
+    answers?: { llama?: string; llama8b?: string };
     sources?: any[];
     detectedIntent?: string;
   };
@@ -67,8 +68,11 @@ export const AssistantScreen = ({
   const [loading, setLoading] = useState(false);
   const [retryPayload, setRetryPayload] = useState<{ query: string; lang: string } | null>(null);
   const [userLocation, setUserLocation] = useState<string | null>(null);
+  const [attachedImage, setAttachedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lang = i18n.language?.split('-')[0] || 'en';
   const langLabel = LANG_LABELS[lang] || 'English';
@@ -98,36 +102,59 @@ export const AssistantScreen = ({
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAttachedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSend = async (overrideText?: string) => {
     const query = (overrideText ?? inputText).trim();
-    if (!query || loading) return;
+    if (!query && !attachedImage) return;
+    if (loading) return;
+
+    const currentImage = attachedImage;
+    const currentPreview = imagePreview;
 
     const detectedIntent = detectIntent(query);
-    const userMsg: Message = { id: ++msgId, role: 'user', text: query, time: now() };
+    const userMsg: Message = { 
+      id: ++msgId, 
+      role: 'user', 
+      text: query || 'Analyze attached image', 
+      time: now(),
+      image: currentPreview || undefined
+    };
+    
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
+    setAttachedImage(null);
+    setImagePreview(null);
     setLoading(true);
     setRetryPayload(null);
 
     try {
-      // Language mapping: send full language name to backend
-      const langMap: Record<string, string> = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
-      const displayLang = langMap[lang] || 'English';
-
-      const response: ChatResponse = await ragAPI.sendMessage(query, displayLang, userLocation || undefined);
+      const response: ChatResponse = await ragAPI.sendMessage(
+        query, 
+        lang, 
+        userLocation || undefined,
+        currentImage || undefined
+      );
 
       const assistantMsg: Message = {
         id: ++msgId,
         role: 'assistant',
         text: response.best_answer,
         time: now(),
+        image: (response as any).image_url, // Support for system-generated images
         structured: {
           best_answer: response.best_answer,
           confidence: response.confidence,
           mode: (response as any).mode || (response.confidence >= 0.8 ? 'rag' : 'fallback'),
           answers: {
             llama: response.answers?.llama,
-            mixtral: response.answers?.mixtral,
+            llama8b: response.answers?.llama8b,
           },
           sources: response.sources || [],
           detectedIntent: detectedIntent || undefined,
@@ -212,24 +239,47 @@ export const AssistantScreen = ({
               <div className={cn('max-w-[88%] sm:max-w-[78%]', m.role === 'user' && 'items-end flex flex-col')}>
                 {m.role === 'user' ? (
                   // User message — simple pill
-                  <div className="bg-primary text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm shadow-sm">
-                    {m.text}
+                  <div className="flex flex-col gap-2 items-end">
+                    {m.image && (
+                      <div className="w-48 h-32 rounded-xl overflow-hidden border-2 border-primary shadow-md">
+                         <img src={m.image} alt="Upload" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    {m.text && (
+                      <div className="bg-primary text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm shadow-sm">
+                        {m.text}
+                      </div>
+                    )}
                   </div>
                 ) : m.structured ? (
                   // Assistant message — full structured card
-                  <AgriResponseCard
-                    best_answer={m.structured.best_answer}
-                    confidence={m.structured.confidence}
-                    mode={m.structured.mode}
-                    answers={m.structured.answers}
-                    sources={m.structured.sources}
-                    detectedIntent={m.structured.detectedIntent}
-                    time={m.time}
-                  />
+                  <div className="flex flex-col gap-2">
+                    {m.image && (
+                      <div className="w-64 h-40 rounded-xl overflow-hidden border border-emerald-900/10 shadow-sm mb-1 bg-white">
+                         <img src={m.image} alt="AI Suggestion" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <AgriResponseCard
+                      best_answer={m.structured.best_answer}
+                      confidence={m.structured.confidence}
+                      mode={m.structured.mode}
+                      answers={m.structured.answers}
+                      sources={m.structured.sources}
+                      detectedIntent={m.structured.detectedIntent}
+                      time={m.time}
+                    />
+                  </div>
                 ) : (
                   // Welcome / simple text message
-                  <div className="bg-white border border-emerald-900/5 px-4 py-3 rounded-2xl rounded-tl-sm text-sm text-on-surface shadow-sm leading-relaxed">
-                    {m.text.replace(/\*\*(.*?)\*\*/g, '$1')}
+                  <div className="flex flex-col gap-2">
+                    {m.image && (
+                      <div className="w-64 h-40 rounded-xl overflow-hidden border border-emerald-900/10 shadow-sm mb-1 bg-white">
+                         <img src={m.image} alt="AI Suggestion" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="bg-white border border-emerald-900/5 px-4 py-3 rounded-2xl rounded-tl-sm text-sm text-on-surface shadow-sm leading-relaxed">
+                      {m.text.replace(/\*\*(.*?)\*\*/g, '$1')}
+                    </div>
                   </div>
                 )}
 
@@ -310,6 +360,26 @@ export const AssistantScreen = ({
             </button>
           </div>
 
+          {/* Image preview chip */}
+          <AnimatePresence>
+            {imagePreview && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-primary shadow-lg mb-1"
+              >
+                <img src={imagePreview} className="w-full h-full object-cover" />
+                <button 
+                  onClick={() => { setAttachedImage(null); setImagePreview(null); }}
+                  className="absolute top-1 right-1 bg-black/60 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] backdrop-blur-sm"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Text input */}
           <div className="bg-white border border-emerald-900/10 p-1.5 pl-4 rounded-2xl shadow-premium focus-within:border-primary/40 transition-all flex items-center gap-1">
             <input
@@ -318,12 +388,28 @@ export const AssistantScreen = ({
               value={inputText}
               onChange={e => setInputText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
-              placeholder="Ask about disease, pests, fertilizer..."
+              placeholder={attachedImage ? "Add caption to your photo..." : "Ask about disease, pests, fertilizer..."}
               className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-3 px-2 outline-none text-on-surface placeholder:text-on-surface-variant/40"
             />
+            
+            <input 
+               type="file" 
+               className="hidden" 
+               ref={fileInputRef} 
+               accept="image/*"
+               onChange={handleImagePick}
+            />
+            
+            <button
+               onClick={() => fileInputRef.current?.click()}
+               className="w-11 h-11 flex items-center justify-center text-on-surface-variant/60 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all"
+            >
+               <ImageIcon size={20} />
+            </button>
+
             <button
               onClick={() => handleSend()}
-              disabled={!inputText.trim() || loading}
+              disabled={(!inputText.trim() && !attachedImage) || loading}
               className="w-11 h-11 flex items-center justify-center signature-gradient text-white rounded-xl shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 active:scale-95 transition-all disabled:opacity-40"
             >
               <Send size={20} />

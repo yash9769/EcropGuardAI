@@ -58,6 +58,24 @@ export const TopBar = ({ title, activeScreen, setScreen, dark }: TopBarProps) =>
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Language Toggle */}
+        <div className={cn("hidden md:flex items-center bg-surface-container-lowest p-1 rounded-full border shadow-sm", dark ? "border-white/10" : "border-emerald-900/5")}>
+          {languages.map(l => (
+            <button
+              key={l.code}
+              onClick={() => i18n.changeLanguage(l.code)}
+              className={cn(
+                'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all',
+                i18n.language?.startsWith(l.code)
+                  ? 'bg-primary text-white shadow-xs'
+                  : dark ? 'text-emerald-100/60 hover:text-white' : 'text-on-surface-variant hover:bg-emerald-50'
+              )}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+        
         <button 
           onClick={() => setScreen('pro-plan')}
           className={cn(

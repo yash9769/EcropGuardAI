@@ -32,7 +32,7 @@ class ModelConfig:
     public_name: str
     model_id: str
     temperature: float = 0.3
-    max_tokens: int = 800
+    max_tokens: int = 2048
 
 
 # Models available on Groq – add/remove freely
@@ -42,15 +42,21 @@ MODEL_REGISTRY: Tuple[ModelConfig, ...] = (
 )
 
 SYSTEM_PROMPT = (
-    "You are eCropGuard AI, an elite agricultural research assistant trusted by millions of Indian farmers. "
-    "Your advice is evidence-based, practical, and region-specific. "
-    "\n\nKEY RULES:"
-    "\n1. If 'Context' is provided in the user message, you MUST use it as the primary source of truth and explicitly reference it. "
-    "Start your response with a phrase like 'Based on research data for your region...' or 'According to agricultural records...'."
-    "\n2. If context contains regional markers [MH] (Maharashtra) or [HR] (Haryana), tailor ALL advice specifically to that region's soil, climate, and crops."
-    "\n3. Structure responses with **bold section headers**, bullet points, and numbered steps for easy reading."
-    "\n4. Always include: Cause, Symptoms to look for, Immediate treatment, and Prevention steps."
-    "\n5. Use simple, farmer-friendly language. Avoid jargon unless followed by a plain explanation."
+    "You are eCropGuard AI, a world-class agricultural diagnostic system and PhD agronomist."
+    "\n\nYou are MULTIMODAL: You can see images of crops (via text descriptions from our vision core)."
+    "\n\nCRITICAL RESPONSE RULES:"
+    "\n1. FIRST LINE MUST BE THE DIRECT ANSWER. Be extremely authoritative and concise. "
+    "   - Format: [LOCAL TERM] = [TECHNICAL TERM] ([CATEGORY])"
+    "   - Example: 'भुरी = Powdery Mildew (Fungal Disease)'."
+    "\n2. RESPONSE DEPTH: After the first line, provide a MASSIVE, COMPREHENSIVE explanation. "
+    "   - Include: BIOLOGY (how the pathogen works), ENVIRONMENTAL TRIGGERS (temperature/humidity), "
+    "     IMMEDIATE ACTIONS (chemical/organic), and LONG-TERM PREVENTION."
+    "   - Aim for 300-500 words of dense, high-value advice. Do NOT be brief."
+    "\n3. MULTIMODAL INTEGRATION: If the user provided an image (indicated by [IMAGE ANALYSIS]), "
+    "   incorporate the visual findings (e.g. 'Looking at the white powdery spots in your photo...') into your diagnosis."
+    "\n4. NO ROBOTIC FLUFF: Zero 'Hello', zero 'I am an AI', zero disclaimers about 'I can't see the photo' (since you have the description)."
+    "\n5. NO LITERAL LABELS: Do NOT use structural tags like 'Diagnosis:' or 'Action Plan:'."
+    "\n6. LANGUAGE: Respond EXCLUSIVELY in the target language requested by the system."
 )
 
 
@@ -122,7 +128,7 @@ class LLMRouter:
                         {"role": "user",   "content": prompt},
                     ],
                 ),
-                timeout=25,
+                timeout=90,
             )
             raw = completion.choices[0].message.content or ""
             text = self._clean_response(raw)
@@ -135,7 +141,7 @@ class LLMRouter:
             return LLMResponse(model=config.public_name, text=text)
 
         except asyncio.TimeoutError:
-            logger.warning("%s timed out after 25s", config.public_name)
+            logger.warning("%s timed out after 90s", config.public_name)
             return LLMResponse(model=config.public_name, text="Request timed out. Please try again.")
         except Exception as exc:
             logger.error("%s failed: %s", config.public_name, exc)
@@ -145,9 +151,8 @@ class LLMRouter:
         language_name = SUPPORTED_LANGUAGES.get(lang, "English")
         return (
             f"{SYSTEM_PROMPT}\n\n"
-            f"Write your entire response in {language_name}. "
-            "Use language that a rural farmer can understand. "
-            "When relevant, mention specific symptoms, likely cause, and clear next steps."
+            f"If answering a complex symptom question, respond in {language_name}. "
+            "Use clear, factual, farmer-friendly language without robotic fluff."
         )
 
     @staticmethod

@@ -47,13 +47,11 @@ logger = get_logger("backend.app_utils")
 
 def _length_score(text: str) -> float:
     size = len(text.strip())
-    if size < 40:
-        return 0.15
-    if size <= 220:
-        return 0.85
-    if size <= 700:
-        return 1.0
-    return max(0.35, 1.0 - ((size - 700) / 1800))
+    if size < 100:
+        return 0.2
+    if size <= 500:
+        return 0.7
+    return 1.0  # Reward long, thorough answers
 
 
 def _structure_score(text: str) -> float:

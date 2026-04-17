@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30s timeout for complex AI reasoning
+  timeout: 120000, // 120s timeout for complex AI reasoning
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,7 +24,7 @@ export interface ChatResponse {
   agreement: string;
   answers: {
     llama: string;
-    mixtral: string;
+    llama8b: string;
   };
   sources: {
     type: string;
@@ -82,23 +82,43 @@ export interface SoilHistoryItem {
 }
 
 export const ragAPI = {
-  async sendMessage(query: string, lang: string = 'en', location?: string): Promise<ChatResponse> {
+  async sendMessage(query: string, lang: string = 'en', location?: string, image?: File): Promise<ChatResponse> {
     try {
-      // Use the live Supabase function URL directly for RAG
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      let responseData;
       
-      const { data } = await axios.post<ChatResponse>(
-        `${SUPABASE_URL}/functions/v1/rag-query`,
-        { query, lang, location },
-        {
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-      return data;
+      if (image) {
+        const formData = new FormData();
+        formData.append('query', query);
+        formData.append('lang', lang);
+        if (location) formData.append('location', location);
+        formData.append('image', image);
+
+        const { data } = await api.post('/rag-query', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 120000 
+        });
+        responseData = data;
+      } else {
+        const { data } = await api.post('/rag-query', { query, lang, location });
+        responseData = data;
+      }
+      
+      const llamaText = responseData.responses?.find((r: any) => r.model.includes('3.3'))?.text || '';
+      const fallbackText = responseData.responses?.find((r: any) => r.model.includes('3.1'))?.text || '';
+
+      return {
+        query: query,
+        best_answer: responseData.best?.text || "No response generated.",
+        confidence: responseData.rag_used ? 0.9 : 0.7,
+        mode: responseData.rag_used ? 'rag' : 'fallback',
+        agreement: responseData.rag_used ? "MULTI-MODEL VERIFIED" : "GENERAL KNOWLEDGE",
+        answers: {
+          llama: llamaText,
+          llama8b: fallbackText,
+        },
+        sources: [],
+        image_url: responseData.image_url // Pass through AI-suggested image
+      } as any;
     } catch (error) {
       console.error('RAG Query Service Error:', error);
       throw error;

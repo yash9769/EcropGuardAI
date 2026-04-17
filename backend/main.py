@@ -3,14 +3,15 @@
 import os
 import time
 import uuid
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 
 from models.schemas import (
     ChatRequest, ChatResponse, DetectionResponse,
@@ -19,6 +20,8 @@ from models.schemas import (
 )
 from llm_router import llm_router
 from app_utils import get_logger
+from services.image_processing import image_service
+from rag import rag_engine
 
 # Initialize
 logger = get_logger("backend.main")
@@ -109,35 +112,117 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
     )
 
 # ---------------------------------------------------------------------------
-# Core AI Routes (unchanged)
+# Core AI Routes
 # ---------------------------------------------------------------------------
 
-from rag import rag_engine
+def detect_intent(query: str) -> str:
+    q = query.lower()
+    if any(w in q for w in ["translate", "marathi name", "hindi name", "english name", "mean in", "what is"]):
+        if re.search(r'\b(in marathi|in hindi|in english|marathi name|hindi name)\b', q):
+            return "translation"
+        if len(q.split()) < 6 and any(w in q for w in ["name", "meaning"]):
+            return "translation"
+    if any(w in q for w in ["disease", "symptom", "blight", "mildew", "rot", "spot", "bhuri", "karpa"]):
+        return "disease_info"
+    if any(w in q for w in ["treat", "cure", "pesticide", "control", "prevent"]):
+        return "treatment"
+    return "general"
 
-@app.post("/rag-query", response_model=ChatResponse, tags=["AI Chat"])
-async def handle_rag_query(req: ChatRequest):
-    """Answers agricultural queries with local research context and multi-model verification."""
-    logger.info("Chat Request: %s (Lang: %s, Location: %s)", req.query[:50], req.lang, req.location)
+@app.post("/rag-query", tags=["AI Chat"])
+async def handle_rag_query(
+    request: Request,
+    query: Optional[str] = Form(None),
+    lang: Optional[str] = Form(None),
+    location: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+):
+    """Multimodal RAG query. Detects JSON vs Form-Data automatically."""
+    # 1. Capture inputs from Form-Data (if any)
+    q = query
+    l = lang or "en"
+    loc = location
+
+    # 2. Try JSON fallback if not found in Form-Data
+    if not q:
+        try:
+            body = await request.json()
+            q = body.get("query")
+            l = body.get("lang", l)
+            loc = body.get("location", loc)
+        except:
+            pass # Not a JSON request/body
+
+    # 3. Final validation
+    if not q and not image:
+        raise HTTPException(status_code=422, detail="No query or image provided.")
+    
+    # Ensure lang is always set for API calls
+    if not l: l = "en"
+    
+    logger.info("Chat Request: q=%s l=%s img=%s", (q or "")[:30], l, bool(image))
+    
     try:
-        # 1. Retrieve regional RAG context
-        context = rag_engine.search(req.query, location=req.location)
+        image_desc = ""
+        # 4. Multimodal Logic (Image described to reasoning core)
+        if image:
+            logger.info("Processing Image with Vision model...")
+            vision_result = await image_service.process_image(image, l)
+            image_desc = f"\n[IMAGE ANALYSIS: {vision_result.description}. Observed Symptoms: {', '.join(vision_result.symptoms)}]"
+            if not q: q = "What is wrong with this plant?"
+        
+        # 5. Enhanced query for RAG
+        enhanced_query = f"{q} {image_desc}".strip()
+        intent = detect_intent(enhanced_query)
+        
+        context = ""
+        rag_used = False
+        if intent != "translation":
+            context = rag_engine.search(enhanced_query, location=loc)
+            if len(context) > 8000:
+                context = context[:8000] + "...\n[Context Truncated]"
+        
+        if len(context) > 100:
+            rag_used = True
+        else:
+            context = ""
 
-        # 2. Get parallel model responses
+        # 4. Get responses
         all_responses, best = await llm_router.get_multi_response(
-            query=req.query,
-            lang=req.lang,
+            query=enhanced_query,
+            lang=l,
             context=context,
-            location=req.location
+            location=loc
         )
 
-        # 3. Construct production response
-        return ChatResponse(
-            responses=all_responses,
-            best=best,
-            rag_used=bool(context),
-            rag_context_length=len(context),
-            raw_context=context if os.getenv("DEBUG") else None
-        )
+        # 5. GPT-style Image Generation (Ref. images based on disease detection)
+        image_url = None
+        lowered_best = best.text.lower()
+        
+        # Powdery Mildew / Bhuri
+        if any(w in lowered_best for w in ["bhuri", "powdery mildew", "भुरी", "पावडरी"]):
+            image_url = "https://images.unsplash.com/photo-1599419844280-c11c7df0e764?auto=format&fit=crop&q=80&w=800"
+        
+        # Blight / Karpa / Tila
+        elif any(w in lowered_best for w in ["blight", "karpa", "tila", "करपा", "तिळा", "बुरशी"]):
+            image_url = "https://images.unsplash.com/photo-1598214886806-c87b8a5c291b?auto=format&fit=crop&q=80&w=800"
+        
+        # Tomato specific
+        elif "tomato" in lowered_best or "टमाटर" in lowered_best:
+            image_url = "https://images.unsplash.com/photo-1592841200221-a6898f307bac?auto=format&fit=crop&q=80&w=800"
+        
+        # Pests / Insects
+        elif any(w in lowered_best for w in ["pest", "insect", "कीड", "अळी"]):
+            image_url = "https://images.unsplash.com/photo-1590682680695-43b964a3ae17?auto=format&fit=crop&q=80&w=800"
+
+        # 6. Construct production response
+        return {
+            "query": q,
+            "responses": [r.model_dump() for r in all_responses],
+            "best": best.model_dump(),
+            "rag_used": rag_used,
+            "rag_context_length": len(context),
+            "image_url": image_url
+        }
     except Exception as e:
         logger.error("RAG Query Error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

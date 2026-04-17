@@ -111,7 +111,14 @@ class RAGEngine:
 
         try:
             logger.info("RAG Searching: '%s' | Location: %s", query[:40], location)
-            query_emb = self._encoder.encode([query], convert_to_numpy=True)[0]
+            
+            # Normalization Layer
+            normalized_query = query.lower()
+            normalized_query = normalized_query.replace("bhuri", "powdery mildew")
+            normalized_query = normalized_query.replace("karpa", "blight")
+            normalized_query = normalized_query.replace("tila", "sesame disease")
+
+            query_emb = self._encoder.encode([normalized_query], convert_to_numpy=True)[0]
 
             # --- Primary path: Supabase ---
             results = self._search_supabase(query_emb, top_k, location)

@@ -3,7 +3,7 @@ import "@supabase/functions-js/edge-runtime.d.ts"
 
 // --- CONFIG ---
 const PRIMARY_MODEL = "llama-3.3-70b-versatile"
-const SECONDARY_MODEL = "mixtral-8x7b-32768"
+const SECONDARY_MODEL = "llama-3.1-8b-instant"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

@@ -38,6 +38,7 @@ export const ForumsScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) 
         })));
       } catch (err) {
         console.error(err);
+        setPosts(INITIAL_POSTS);
       } finally {
         setLoading(false);
       }

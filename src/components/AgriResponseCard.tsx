@@ -7,7 +7,7 @@ interface AgriCardProps {
   best_answer: string;
   confidence: number;
   mode: 'rag' | 'fallback';
-  answers?: { llama?: string; mixtral?: string };
+  answers?: { llama?: string; llama8b?: string };
   sources?: { source?: string; preview?: string }[];
   detectedIntent?: string;
   time: string;
@@ -67,9 +67,9 @@ function parseStructured(text: string): {
     }
   }
 
-  // Fallback: if no structured data, use first 3 non-empty lines as summary
-  const summary = summaryLines.slice(0, 3).join(' ') || clean.substring(0, 250);
-  return { disease, actionSteps: actionSteps.slice(0, 5), preventiveTips: preventiveTips.slice(0, 4), summary };
+  // No more hard slicing - show full thorough steps
+  const summary = summaryLines.slice(0, 5).join(' ') || clean.substring(0, 500);
+  return { disease, actionSteps, preventiveTips, summary };
 }
 
 export const AgriResponseCard = ({
@@ -105,10 +105,9 @@ export const AgriResponseCard = ({
 
       {/* Summary paragraph */}
       <div className="px-4 pb-3">
-        <p className="text-sm text-on-surface leading-relaxed">
-          {disease ? summary : stripLabel(best_answer).substring(0, 320)}
-          {best_answer.length > 320 && !disease && '…'}
-        </p>
+        <div className="text-sm text-on-surface leading-relaxed prose prose-sm max-w-none prose-emerald">
+          <ReactMarkdown>{disease ? summary : stripLabel(best_answer)}</ReactMarkdown>
+        </div>
       </div>
 
       {/* Action Steps */}
@@ -147,7 +146,7 @@ export const AgriResponseCard = ({
 
       {/* Footer actions */}
       <div className="px-4 pb-4 flex items-center gap-2 flex-wrap">
-        {answers && (answers.mixtral || answers.llama) && (
+        {answers && (answers.llama8b || answers.llama) && (
           <button
             onClick={() => setShowCompare(v => !v)}
             className="text-[10px] font-bold text-on-surface-variant px-3 py-1.5 rounded-full bg-surface-container hover:bg-emerald-50 border border-emerald-900/5 transition-colors"
@@ -169,14 +168,14 @@ export const AgriResponseCard = ({
       {showCompare && answers && (
         <div className="border-t border-emerald-900/5 bg-surface-container-low/50 px-4 py-3 flex flex-col gap-3">
           <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">AI Opinions</p>
-          {[{ key: 'Llama 3.3 70B', text: answers.llama }, { key: 'Mixtral 8x7B', text: answers.mixtral }]
+          {[{ key: 'Llama 3.3 70B', text: answers.llama }, { key: 'Llama 3.1 8B', text: answers.llama8b }]
             .filter(a => a.text)
             .map(({ key, text }) => (
-              <div key={key} className="rounded-xl bg-white border border-emerald-900/5 p-3">
-                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-1">{key}</p>
-                <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3">
-                  {stripLabel(text || '')}
-                </p>
+              <div key={key} className="rounded-xl bg-white border border-emerald-900/5 p-4">
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-2">{key}</p>
+                <div className="text-xs text-on-surface-variant leading-relaxed prose prose-sm max-w-none prose-emerald">
+                  <ReactMarkdown>{stripLabel(text || '')}</ReactMarkdown>
+                </div>
               </div>
             ))}
         </div>
