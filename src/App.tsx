@@ -22,6 +22,7 @@ import { Dashboard, History, Add, Analytics, Settings } from './components/Icons
 import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './hooks/useAuth';
+import { AdvisoryBanner } from './components/AdvisoryBanner';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -72,6 +73,8 @@ export default function App() {
         {/* Subtle Background Art */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-emerald-100/20 blur-[150px] -z-10 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-800/10 blur-[120px] -z-10 rounded-full translate-y-1/3 -translate-x-1/3 pointer-events-none"></div>
+
+        <AdvisoryBanner userId={auth.user?.id} />
 
         <AnimatePresence mode="wait">
           <motion.div

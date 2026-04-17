@@ -81,6 +81,7 @@ class SoilAnalysisResponse(BaseModel):
     phosphorus_status: str
     potassium_status: str
     ph_status: str
+    saved_id: Optional[str] = None  # UUID of the saved row, if DB write succeeded
 
 
 class SoilHistoryItem(BaseModel):
@@ -91,6 +92,53 @@ class SoilHistoryItem(BaseModel):
     potassium: float
     ph: float
     soil_health_score: int
+
+
+# ---------------------------------------------------------------------------
+# Advisories
+# ---------------------------------------------------------------------------
+
+class Advisory(BaseModel):
+    id: str
+    title: str
+    body: str
+    severity: str = "info"
+    target_states: Optional[List[str]] = None
+    target_districts: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Market Prices
+# ---------------------------------------------------------------------------
+
+class MarketPrice(BaseModel):
+    commodity: str
+    market: str
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    modal_price: Optional[float] = None
+    date: Optional[str] = None
+    unit: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Forum
+# ---------------------------------------------------------------------------
+
+class ForumPostCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    body: str = Field(..., min_length=1)
+    crop_type: Optional[str] = None
+    district: Optional[str] = None
+    user_id: Optional[str] = None
+
+
+class ForumReplyCreate(BaseModel):
+    body: str = Field(..., min_length=1)
+    user_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

@@ -6,9 +6,12 @@ import { WaterDrop, WbSunny, Science, Analytics, ChevronRight } from '../compone
 import { getWeather } from '../lib/weather';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
+import { MarketPriceWidget } from '../components/MarketPriceWidget';
+import { useAuth } from '../hooks/useAuth';
 
 export const DashboardScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) => {
   const { t } = useTranslation();
+  const { profile } = useAuth();
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -124,6 +127,11 @@ export const DashboardScreen = ({ setScreen }: { setScreen: (s: Screen) => void 
             <p className="text-sm font-semibold text-white/80 uppercase tracking-wider mb-1 relative z-10">{t('health_score')}</p>
             <p className="text-3xl font-headline font-black text-white relative z-10">{t('health_score_status')}</p>
           </motion.div>
+        </div>
+
+        {/* Market Price Integration */}
+        <div className="mt-8">
+          <MarketPriceWidget district={profile?.district || undefined} />
         </div>
 
         {/* Recent Activity and Alerts */}

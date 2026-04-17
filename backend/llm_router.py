@@ -37,8 +37,8 @@ class ModelConfig:
 
 # Models available on Groq – add/remove freely
 MODEL_REGISTRY: Tuple[ModelConfig, ...] = (
-    ModelConfig(public_name="llama", model_id="llama-3.3-70b-versatile"),
-    ModelConfig(public_name="qwen",  model_id="qwen/qwen3-32b"),
+    ModelConfig(public_name="Llama 3.3 70B", model_id="llama-3.3-70b-versatile"),
+    ModelConfig(public_name="Llama 3.1 8B",  model_id="llama-3.1-8b-instant"),
 )
 
 SYSTEM_PROMPT = (

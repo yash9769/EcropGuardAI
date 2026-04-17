@@ -11,9 +11,11 @@ const INITIAL_POSTS = [
   { id: 2, title: 'New irrigation technique for Sector B', author: 'AgroExpert', replies: 8, time: '5h ago', tags: ['Irrigation', 'Efficiency'], liked: true },
   { id: 3, title: 'Wheat harvesting season tips', author: 'Yash', replies: 24, time: '1d ago', tags: ['Wheat', 'Harvest'], liked: false },
 ];
+import { useAuth } from '../hooks/useAuth';
 
 export const ForumsScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isPosting, setIsPosting] = useState(false);
@@ -23,15 +25,16 @@ export const ForumsScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) 
   React.useEffect(() => {
     async function loadPosts() {
       try {
-        const resp = await fetch('/api/social/posts');
-        const data = await parseJsonResponse<any[]>(resp);
-        const items = Array.isArray(data) ? data : [];
+        const resp = await fetch('/api/forums/posts?page=1');
+        if (!resp.ok) throw new Error('Failed to fetch posts');
+        const data = await parseJsonResponse<any>(resp);
+        const items = data?.posts && Array.isArray(data.posts) ? data.posts : [];
         setPosts(items.map((p: any) => ({
             ...p,
-            author: 'Expert', // Default for now
-            time: 'Just now',
-            tags: ['Crop'],
-            replies: 0
+            author: p.user_id === user?.id ? 'You' : 'Farmer', // Minimal mock until profiles expand
+            time: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Just now',
+            tags: p.crop_type ? [p.crop_type, p.district].filter(Boolean) : ['General'],
+            replies: p.upvotes || 0 // use upvotes for replies column as placeholder
         })));
       } catch (err) {
         console.error(err);
@@ -40,17 +43,31 @@ export const ForumsScreen = ({ setScreen }: { setScreen: (s: Screen) => void }) 
       }
     }
     loadPosts();
-  }, []);
+  }, [user]);
 
   const handleCreatePost = async () => {
     if (!newPost.title) return;
     try {
-      const resp = await fetch(`/api/social/posts?title=${encodeURIComponent(newPost.title)}&content=Empty&author_id=1`, {
-          method: 'POST'
+      const resp = await fetch('/api/forums/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+             title: newPost.title,
+             body: newPost.tags || 'No description provided.',
+             district: 'Maharashtra', // Demo default
+             user_id: user?.id
+          })
       });
+      if (!resp.ok) throw new Error('Failed to create post');
       const post = await parseJsonResponse<any>(resp);
       if (post) {
-        setPosts([{ ...post, author: 'You', time: 'Just now', tags: ['New'] }, ...posts]);
+        setPosts([{ 
+            ...post, 
+            author: 'You', 
+            time: 'Just now', 
+            tags: ['New'],
+            replies: 0
+        }, ...posts]);
       }
       setIsPosting(false);
       setNewPost({ title: '', tags: '' });

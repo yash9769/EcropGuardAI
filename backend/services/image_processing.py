@@ -22,7 +22,7 @@ class ImageService:
         self._api_key = os.getenv("GEMINI_API_KEY", "").strip()
         if self._api_key:
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel("gemini-1.5-flash") # Use 1.5-flash or 2.0-flash
+            self._model = genai.GenerativeModel("gemini-2.5-flash") # Updated to supported API version
             logger.info("Gemini Vision Service initialized.")
         else:
             self._model = None
@@ -48,8 +48,16 @@ class ImageService:
 
         prompt = f"""
         You are a PhD plant pathologist and field agronomist.
-        Analyze this agricultural image meticulously. Identify the crop type and any diseases or deficiencies.
+        Analyze this image meticulously. 
         
+        CRITICAL RULE: Check if there is ACTUALLY a plant or agricultural crop in the image.
+        If there is NO crop found (e.g. it is a person, a random object, a screenshot):
+        - set "crop_type" to "None"
+        - set "disease_name" to "No Crop Found"
+        - set "is_healthy" to false
+        - leave recommendations/symptoms empty and explain in "description" that no plant was detected.
+        
+        If a crop IS present, identify the crop type and any diseases or deficiencies.
         Provide advice for small-scale farmers in {target_lang}.
         If the crop is healthy, provide maintenance tips. If diseased, provide remedial actions.
         
@@ -72,14 +80,9 @@ class ImageService:
         """
 
         try:
-            image_data = {
-                "mime_type": file.content_type or "image/jpeg",
-                "data": raw_bytes,
-            }
-
-            # Async AI call
+            # Async AI call using the PIL Image directly which the Gemini SDK natively supports
             response = await self._model.generate_content_async(
-                contents=[prompt, image_data]
+                contents=[prompt, img]
             )
             
             # Sanitise JSON response
